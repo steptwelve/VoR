@@ -1,0 +1,24 @@
+# Environment variables (NEVER commit credentials!)
+.env
+
+# Virtual environment
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Test mode variants only (we don't need all 5 styles)
+output/*-a.png
+output/*-b.png
+output/*-c.png
+output/*-d.png
+output/*-e.png
+
+# Post preview text files (temporary)
+output/*-post-preview.txt
+
+# 
+debris/
