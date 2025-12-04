@@ -20,5 +20,23 @@ output/*-e.png
 # Post preview text files (temporary)
 output/*-post-preview.txt
 
-# 
-debris/
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# Debris folder
+debris/.DS_Store
