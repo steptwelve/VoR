@@ -1,42 +1,29 @@
-# Environment variables (NEVER commit credentials!)
-.env
-
-# Virtual environment
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
 venv/
 env/
+ENV/
 
-# Python cache
-__pycache__/
-*.pyc
-*.pyo
+# Environment variables
+.env
 
-# Test mode variants only (we don't need all 5 styles)
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test output files (optional - remove if you want to track these)
 output/*-a.png
 output/*-b.png
 output/*-c.png
 output/*-d.png
 output/*-e.png
-
-# Post preview text files (temporary)
 output/*-post-preview.txt
-
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# VS Code
-.vscode/
-*.code-workspace
-
-# Logs
-logs/
-*.log
-
-# Temporary files
-*.tmp
-*.bak
-*~
-
-# Debris folder
-debris/.DS_Store
