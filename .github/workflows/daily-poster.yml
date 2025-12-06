@@ -57,5 +57,7 @@ jobs:
             echo "No new files to commit"
           else
             git commit -m "Add daily meditation image for $(date +'%m-%d')"
-            git push --force-with-lease origin main
+            git fetch origin main
+            git rebase origin/main || git rebase --skip
+            git push origin main
           fi
