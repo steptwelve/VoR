@@ -1,0 +1,46 @@
+name: Daily SMS Sender
+
+on:
+  schedule:
+    # Runs at 8 AM Pacific (16:00 UTC in winter, 15:00 UTC in summer DST)
+    # Using 16:00 UTC for Pacific Standard Time
+    - cron: '0 16 * * *'
+  
+  # Allows manual trigger from GitHub Actions tab
+  workflow_dispatch:
+
+jobs:
+  send-sms:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Send SMS to subscribers
+        env:
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_PHONE_NUMBER: ${{ secrets.TWILIO_PHONE_NUMBER }}
+        run: |
+          # Create Google credentials file from secret
+          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > vor-daily-meditation-by-sms.json
+          
+          # Run SMS sender
+          python sms_sender.py
+          
+          # Clean up credentials file
+          rm vor-daily-meditation-by-sms.json
