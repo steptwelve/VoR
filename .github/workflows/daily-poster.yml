@@ -50,7 +50,8 @@ jobs:
           git pull --rebase
           
           # Only add PNG images, not txt files
-          git add output/*.png
+          # git add output/*.png
+	  git add meditations/*.txt output/*.png
           
           # Only commit if there are changes
           if git diff --staged --quiet; then
