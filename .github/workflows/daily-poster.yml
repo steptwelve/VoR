@@ -49,9 +49,8 @@ jobs:
           # Pull any changes first to avoid conflicts
           git pull --rebase
           
-          # Only add PNG images, not txt files
-          # git add output/*.png
-	  git add meditations/*.txt output/*.png
+          # Add both txt and png files
+          git add meditations/*.txt output/*.png
           
           # Only commit if there are changes
           if git diff --staged --quiet; then
