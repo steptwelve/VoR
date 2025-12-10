@@ -1,3 +1,9 @@
+# sms-sender.yml
+# Version: 1.1
+# Date: 2024-12-10
+# Changes: Added SMS_ENABLED secret check to allow enabling/disabling SMS sends without modifying workflow
+# Previous version: 1.0 (original version without SMS toggle capability)
+
 name: Daily SMS Sender
 
 on:
@@ -30,7 +36,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
+      - name: Check if SMS is enabled
+        id: sms_check
+        run: |
+          if [ "${{ secrets.SMS_ENABLED }}" = "true" ]; then
+            echo "SMS is enabled"
+            echo "enabled=true" >> $GITHUB_OUTPUT
+          else
+            echo "SMS is disabled - skipping send"
+            echo "enabled=false" >> $GITHUB_OUTPUT
+          fi
+      
       - name: Send SMS to subscribers
+        if: steps.sms_check.outputs.enabled == 'true'
         env:
           TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
           TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
