@@ -26,4 +26,11 @@ output/*-b.png
 output/*-c.png
 output/*-d.png
 output/*-e.png
-output/*-post-preview.txtvor-daily-meditation-by-sms-*.json
+output/*-post-preview.txt
+output/rr-preview.png
+
+# Recovery Reflections - exclude personal drafts and archives
+reflections/queue/
+reflections/posted/
+
+vor-daily-meditation-by-sms-*.json
