@@ -41,7 +41,9 @@ Daily/
 │   └── MM-DD-es.txt            # Spanish translations (when produced)
 ├── backgrounds/                # Local background videos (NOT in git — too large)
 ├── output/                     # Built MP4s and PNGs (NOT in git — too large)
-├── templates/                  # End card image + narration text
+├── templates/                  # End card narration text
+├── preview_endcard.py          # Quickly preview/iterate on endcard design
+├── make_endcard.py             # Legacy static endcard generator (kept for reference)
 │
 ├── .github/workflows/
 │   └── daily-poster.yml        # GitHub Actions — runs everything daily at 1AM PT
@@ -191,6 +193,27 @@ python3 translate_meditation.py --date 03-03 --dry-run
 ```
 
 **Output file:** `meditations/MM-DD-es.txt`
+
+---
+
+## Endcard Design
+
+The endcard is generated dynamically at build time inside `build-video.sh` (Step 6) using Pillow. It does NOT use a static PNG template.
+
+**Background:** `backgrounds/ChatGPT-Image-VoR.png` — the branded forest canopy image. The top ~27% (which contains "Voices of Recovery" in large serif text) is cropped out, leaving only the clean forest background.
+
+**Layout:**
+- Semi-transparent dark box over the text area
+- "To learn more about SAA, visit:" — font 54, white
+- "saa-recovery.org" — font 108, white, bold
+- SAA purpose quote — font 40, greenish-white (210, 225, 210)
+- Attribution line (Video: Pexels.com | Narration: Microsoft Azure TTS) — font 21, same greenish-white, inside the box
+
+**To preview/iterate on endcard design without rebuilding the full video:**
+```bash
+python3 preview_endcard.py
+```
+This generates `templates/endcard-template.png` and opens it in Preview.
 
 ---
 
