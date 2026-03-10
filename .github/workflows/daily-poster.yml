@@ -3,15 +3,15 @@ name: Daily Meditation Poster
 on:
   schedule:
     # Runs at 1 AM Pacific (9 AM UTC)
-    - cron: '0 15 * * *'
-  
+    - cron: '0 9 * * *'
+
   # Allows manual trigger from GitHub Actions tab
   workflow_dispatch:
 
 jobs:
   post-meditation:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -19,18 +19,18 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      
-      - name: Run daily poster script
+
+      # ── Step 1: Scrape + post to Bluesky/Twitter ─────────────
+      - name: Run daily poster (scrape + social posts)
         env:
           BSKY_USERNAME: ${{ secrets.BSKY_USERNAME }}
           BSKY_APP_PASSWORD: ${{ secrets.BSKY_APP_PASSWORD }}
@@ -40,23 +40,95 @@ jobs:
           X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
         run: |
           python daily_poster.py
-      
-      - name: Commit and push new meditation images
+
+      # ── Step 2: Check config flags ───────────────────────────
+      - name: Check config flags
+        id: config
+        run: |
+          python - <<'EOF'
+          from vor_config import config
+          config.summary()
+          import os
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"video_enabled={'true' if config.video_enabled else 'false'}\n")
+              f.write(f"spanish_enabled={'true' if config.spanish_enabled else 'false'}\n")
+          EOF
+
+      # ── Step 3: Install ffmpeg + edge-tts (video only) ───────
+      - name: Install video dependencies
+        if: steps.config.outputs.video_enabled == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          pip install edge-tts pillow
+
+      # ── Step 4: Download background video from Pexels ────────
+      - name: Download background video
+        if: steps.config.outputs.video_enabled == 'true'
+        env:
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        run: |
+          python download_background.py --output /tmp/background.mp4
+
+      # ── Step 5: Build English video ───────────────────────────
+      - name: Build English video
+        if: steps.config.outputs.video_enabled == 'true'
+        run: |
+          MMDD=$(date +'%m-%d')
+          YEAR=$(date +'%Y')
+          BACKGROUND_VIDEO=/tmp/background.mp4 ./build-video.sh $MMDD $YEAR
+
+      # ── Step 6: Upload English video to YouTube ───────────────
+      - name: Upload English video to YouTube
+        if: steps.config.outputs.video_enabled == 'true'
+        env:
+          YT_TOKEN_JSON: ${{ secrets.YT_TOKEN_JSON }}
+        run: |
+          python upload_youtube.py
+
+      # ── Step 7: Translate to Spanish ─────────────────────────
+      - name: Translate meditation to Spanish
+        if: |
+          steps.config.outputs.video_enabled == 'true' &&
+          steps.config.outputs.spanish_enabled == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          MMDD=$(date +'%m-%d')
+          python translate_meditation.py --date $MMDD
+
+      # ── Step 8: Build Spanish video ───────────────────────────
+      - name: Build Spanish video
+        if: |
+          steps.config.outputs.video_enabled == 'true' &&
+          steps.config.outputs.spanish_enabled == 'true'
+        run: |
+          MMDD=$(date +'%m-%d')
+          YEAR=$(date +'%Y')
+          LANG=es BACKGROUND_VIDEO=/tmp/background.mp4 ./build-video.sh $MMDD $YEAR
+
+      # ── Step 9: Upload Spanish video to YouTube ───────────────
+      - name: Upload Spanish video to YouTube
+        if: |
+          steps.config.outputs.video_enabled == 'true' &&
+          steps.config.outputs.spanish_enabled == 'true'
+        env:
+          YT_TOKEN_JSON: ${{ secrets.YT_TOKEN_JSON }}
+          YT_TOKEN_JSON_ES: ${{ secrets.YT_TOKEN_JSON_ES }}
+        run: |
+          LANG=es python upload_youtube.py
+
+      # ── Step 10: Commit new files to repo ─────────────────────
+      - name: Commit and push new files
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          
-          # Pull any changes first to avoid conflicts
           git pull --rebase
-          
-          # Add both txt and png files
-          git add meditations/*.txt output/*.png
-          
-          # Only commit if there are changes
+          git add meditations/*.txt output/*.png .vor-state.json
           if git diff --staged --quiet; then
             echo "No new files to commit"
           else
-            git commit -m "Add daily meditation image for $(date +'%m-%d')"
+            git commit -m "Daily meditation $(date +'%m-%d')"
             git fetch origin main
             git rebase origin/main || git rebase --skip
             git push origin main
