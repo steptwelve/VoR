@@ -65,6 +65,8 @@ def get_download_url(video_id):
         headers=headers,
         timeout=30
     )
+    if resp.status_code == 404:
+        return None, None
     resp.raise_for_status()
     data = resp.json()
 
@@ -112,13 +114,21 @@ def main():
         print("❌ No valid video IDs in backgrounds.txt")
         sys.exit(1)
 
-    video_id, idx = get_next_video_id(ids)
-    print(f"[download_background] Video {idx + 1} of {len(ids)}: Pexels ID {video_id}")
+    # Try IDs in rotation order, skip any that return 404
+    for attempt in range(len(ids)):
+        video_id, idx = get_next_video_id(ids)
+        print(f"[download_background] Video {idx + 1} of {len(ids)}: Pexels ID {video_id}")
+        url, author = get_download_url(video_id)
+        if url is None:
+            print(f"  ⚠️  ID {video_id} not found on Pexels (404), trying next...")
+            continue
+        print(f"[download_background] Author: {author}")
+        download_video(url, args.output)
+        print(f"[download_background] Ready: {args.output}")
+        sys.exit(0)
 
-    url, author = get_download_url(video_id)
-    print(f"[download_background] Author: {author}")
-    download_video(url, args.output)
-    print(f"[download_background] Ready: {args.output}")
+    print("❌ All video IDs failed. Check backgrounds.txt for stale IDs.")
+    sys.exit(1)
 
 
 if __name__ == "__main__":

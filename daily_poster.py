@@ -836,42 +836,19 @@ def main():
         logger.info("Saved text cache: %s", txt_path)
 
     if test_mode:
-        # TEST MODE: generate all 5 image variants, do not post
-        logger.info("TEST MODE: Regenerating image variants and skipping posts.")
-        for style in ["a", "b", "c", "d", "e"]:
-            out_file = OUTPUT_DIR / f"{mmdd}-{style}.png"
-            compose_variant(style, page_title, full_text, out_file)
-        
-        # Generate and save post text previews
-        # Build Bsky and X texts
+        # TEST MODE: scrape + generate thumbnail (style B), show post previews, no posting
+        logger.info("TEST MODE: Generating thumbnail and skipping posts.")
+        compose_variant("b", page_title, full_text, png_path)
+
         bsky_text = build_bsky_text(full_text)
         x_text = build_x_text(full_text)
-        
-        preview_file = OUTPUT_DIR / f"{mmdd}-post-preview.txt"
-        with open(preview_file, 'w', encoding='utf-8') as f:
-            f.write(f"=== POST TEXT PREVIEW for {mmdd} ===\n\n")
-            f.write(f"BLUESKY POST ({len(bsky_text)} chars / 300 max):\n")
-            f.write("-" * 70 + "\n")
-            f.write(bsky_text + "\n\n")
-            f.write(f"X/TWITTER POST ({len(x_text)} chars / 280 max):\n")
-            f.write("-" * 70 + "\n")
-            f.write(x_text + "\n\n")
-            f.write("NOTE: These are the exact texts that would be posted in normal mode.\n")
-        
-        logger.info("Saved post preview: %s", preview_file)
 
         print("\n" + "=" * 70)
         print("=== SUMMARY (TEST MODE) ===")
         print("=" * 70)
         print(f"Date: {mmdd}")
         print(f"Text cache: {'EXISTS' if txt_path.exists() else 'MISSING'}")
-        print(f"\nGenerated images:")
-        for style in ["a", "b", "c", "d", "e"]:
-            out_file = OUTPUT_DIR / f"{mmdd}-{style}.png"
-            status = "✓" if out_file.exists() else "✗"
-            print(f"  {status} Style {style.upper()}: {out_file.name}")
-        
-        print(f"\n📄 Post preview saved: {preview_file.name}")
+        print(f"Thumbnail:  {png_path.name} {'✓' if png_path.exists() else '✗'}")
         print("\nPost text preview:")
         print("─" * 70)
         print(f"BLUESKY ({len(bsky_text)}/300 chars):")
