@@ -2,36 +2,31 @@ name: Daily Meditation Poster
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VoR Daily Meditation — GitHub Actions Workflow
-# Version: 2026-03-11.04
+# Version: 2026-03-11.05
+#
+# Changes in .05 (2026-03-11):
+# - Added meditations/*.posted to the commit step git add command.
+#   The .posted flag files written by daily_poster.py (duplicate post guard)
+#   must be committed to the repo so subsequent runs on the same day see them
+#   and skip posting. Without this they only exist in the runner's workspace
+#   and are discarded when the runner exits.
 #
 # Changes in .04 (2026-03-11):
-# - Fixed commit step again: replaced 'git add --ignore-missing' (which
-#   requires --dry-run on the runner's git version and exits 128 without it)
-#   with a shell conditional: [ -f .vor-state.json ] && git add .vor-state.json
-#   This is the correct portable approach across all git versions.
+# - Fixed commit step: replaced 'git add --ignore-missing' with shell
+#   conditional for .vor-state.json (git 2.53 compatibility).
 #
 # Changes in .03 (2026-03-11):
-# - Attempted fix for .vor-state.json using --ignore-missing — did not work
-#   on runner git version (2.53.0 requires --dry-run with that flag).
+# - Attempted --ignore-missing fix — did not work on runner git 2.53.0.
 #
 # Changes in .02 (2026-03-11):
-# - Replaced config.yml video flag check with GitHub Actions Variables
-#   (vars.ENABLE_VIDEO, vars.ENABLE_SPANISH) so flags can be toggled in the
-#   GitHub UI without touching code or making commits.
-# - Added Pushover notifications on any step failure so Jackson is alerted
-#   immediately rather than discovering problems via email hours later.
-# - Added soft Pushover warning (low priority) when a Pexels video is skipped
-#   due to 404 — surfaced via /tmp/pexels_warning.txt flag file written by
-#   download_background.py when it falls back to an alternate video.
-# - Isolated video pipeline steps with continue-on-error so a video failure
-#   does not prevent the commit step from running.
-# - Commit step now always runs (even if video fails) so meditation text and
-#   state files are always saved to the repo.
-# - Removed dead config.yml flag-check step (replaced by vars.* above).
+# - Replaced config.yml video flag check with GitHub Actions Variables.
+# - Added Pushover notifications on any step failure.
+# - Added soft Pushover warning for Pexels 404 fallback.
+# - Isolated video pipeline with continue-on-error.
+# - Commit step always runs via if: always().
 #
 # Changes in .01 (original):
-# - Initial workflow: scrape + social post + video build + YouTube upload +
-#   commit. All steps ran as a single linear job with no failure isolation.
+# - Initial workflow.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 #
@@ -99,6 +94,11 @@ jobs:
       #   2. BOTH Bluesky and X posts fail (total social failure)
       # A single-platform failure logs a warning but does not exit non-zero.
       #
+      # daily_poster.py also checks for meditations/MM-DD.posted before posting.
+      # If that file exists, it means today's post already went out and the
+      # script exits 0 cleanly without posting — preventing duplicates on
+      # manual re-runs.
+      #
       - name: Scrape meditation and post to Bluesky + X
         id: social
         env:
@@ -132,10 +132,6 @@ jobs:
       # a 404 video and fall back to the next one in rotation. This file is
       # checked after the download to send a quiet Pushover warning.
       #
-      # If ALL videos in backgrounds.txt fail (very unlikely), the script exits
-      # non-zero. In that case the video build steps are skipped via their
-      # needs-background condition, but the commit step still runs.
-      #
       - name: Download background video from Pexels
         id: background
         if: vars.ENABLE_VIDEO == 'true'
@@ -145,8 +141,6 @@ jobs:
         run: |
           python download_background.py --output /tmp/background.mp4
 
-      # Send a quiet Pushover warning if any Pexels IDs were skipped (404).
-      # Priority -1 = no sound, no vibration; shows up in notification history.
       - name: Notify — Pexels video skipped (soft warning)
         if: vars.ENABLE_VIDEO == 'true' && steps.background.outcome == 'success'
         run: |
@@ -161,7 +155,6 @@ jobs:
               https://api.pushover.net/1/messages.json
           fi
 
-      # Send a normal-priority alert if the background download failed entirely.
       - name: Notify — background download failed
         if: vars.ENABLE_VIDEO == 'true' && steps.background.outcome == 'failure'
         run: |
@@ -174,11 +167,6 @@ jobs:
             https://api.pushover.net/1/messages.json
 
       # ── Step 3: Install video dependencies ───────────────────────────────────
-      #
-      # Only runs if video is enabled AND the background downloaded successfully.
-      # ffmpeg and edge-tts are not in requirements.txt (no cost to install them
-      # on every run when video is disabled), so we install them on-demand here.
-      #
       - name: Install video dependencies (ffmpeg + edge-tts)
         if: vars.ENABLE_VIDEO == 'true' && steps.background.outcome == 'success'
         run: |
@@ -187,11 +175,6 @@ jobs:
           pip install edge-tts pillow
 
       # ── Step 4: Build and upload English video to YouTube ────────────────────
-      #
-      # Runs only if: video enabled + background succeeded.
-      # continue-on-error so a build or upload failure does not block Spanish
-      # or the commit step.
-      #
       - name: Build English video
         id: build_en
         if: vars.ENABLE_VIDEO == 'true' && steps.background.outcome == 'success'
@@ -225,12 +208,7 @@ jobs:
             --form-string "priority=0" \
             https://api.pushover.net/1/messages.json
 
-      # ── Step 5: Translate, build, and upload Spanish video to YouTube ─────────
-      #
-      # Gated by BOTH vars.ENABLE_VIDEO and vars.ENABLE_SPANISH.
-      # Each sub-step gates on the prior one succeeding, with continue-on-error
-      # so a Spanish failure never blocks the commit step.
-      #
+      # ── Step 5: Translate, build, and upload Spanish video ───────────────────
       - name: Translate meditation to Spanish
         id: translate_es
         if: vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SPANISH == 'true' && steps.background.outcome == 'success'
@@ -278,14 +256,13 @@ jobs:
 
       # ── Step 6: Commit new files to repo ─────────────────────────────────────
       #
-      # Always runs — even if video steps failed. This ensures meditation text
-      # files and .vor-state.json are committed regardless of video pipeline
-      # outcome. The 'if: always()' overrides GitHub's default behavior of
-      # skipping steps after a failure.
+      # Always runs via if: always(). Commits meditation text, thumbnail images,
+      # .posted flag files (duplicate guard), and .vor-state.json (when present).
       #
-      # .vor-state.json only exists in the runner when video is enabled and
-      # download_background.py has run. We check for it with a shell conditional
-      # before adding — 'git add' on a missing file exits 128.
+      # .posted files must be committed so the runner sees them on subsequent
+      # same-day runs and the duplicate guard works correctly.
+      #
+      # .vor-state.json only exists when video ran — checked conditionally.
       #
       - name: Commit and push new files
         id: commit
@@ -294,7 +271,7 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git pull --rebase
-          git add meditations/*.txt output/*.png
+          git add meditations/*.txt meditations/*.posted output/*.png
           [ -f .vor-state.json ] && git add .vor-state.json || echo "No .vor-state.json to commit (video disabled)"
           if git diff --staged --quiet; then
             echo "No new files to commit"

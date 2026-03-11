@@ -1,6 +1,24 @@
 """
 daily_poster.py
 
+Version: 2026-03-11.11
+Generated: 2026-03-11
+
+Changes in the .11 version:
+- Added duplicate post guard using a MM-DD.posted flag file in meditations/.
+  At the start of each normal-mode run, if meditations/MM-DD.posted exists,
+  the script logs the fact and exits 0 cleanly without posting. This prevents
+  duplicate posts when the workflow is triggered manually for testing or when
+  the scheduled run fires after a manual run on the same day.
+- After a successful post (at least one platform succeeded), writes
+  meditations/MM-DD.posted containing a timestamp and which platforms posted.
+  This file is committed to the repo by the workflow commit step so GitHub
+  Actions runners see it on subsequent runs the same day.
+- To force a re-post on the same day (e.g. to recover from a failed post):
+  delete meditations/MM-DD.posted from the repo and re-trigger the workflow.
+- Test mode (--test flag) is unaffected — it never posts and never writes
+  the .posted file.
+
 Version: 2026-03-11.10
 Generated: 2026-03-11
 
@@ -545,69 +563,44 @@ def build_bsky_text(full_text: str) -> str:
       - always preserve all hashtags and URL
     """
     parts = [p.strip() for p in full_text.split("\n\n") if p.strip()]
-    
-    # Use parts[1] (the opening quote) instead of parts[0] (the date/title)
-    # Fall back to parts[0] if there's only one part
     if len(parts) > 1:
         quote = parts[1]
     elif parts:
         quote = parts[0]
     else:
         quote = ""
-    
-    # Flatten whitespace in quote
     quote = " ".join(quote.split())
-    
-    # Build the hashtags and URL suffix (always included)
     hashtags_str = " ".join(BSKY_HASHTAGS)
     url = BSKY_URL
-    
-    # Calculate the suffix (hashtags + URL with spaces)
     suffix_parts = []
     if hashtags_str:
         suffix_parts.append(hashtags_str)
     if url:
         suffix_parts.append(url)
     suffix = " ".join(suffix_parts)
-    
-    # Reserve space for suffix plus one space between quote and suffix
     reserved = len(suffix) + 1 if suffix else 0
     max_quote_length = 300 - reserved
-    
-    # If quote fits, return as-is
     if len(quote) <= max_quote_length:
         if suffix:
             return f"{quote} {suffix}"
         return quote
-    
-    # Quote is too long - truncate word by word from end
     words = quote.split()
     truncated_words = []
     ellipsis = "..."
-    
-    # Reserve space for ellipsis too
-    available = max_quote_length - len(ellipsis) - 1  # -1 for space before ellipsis
-    
+    available = max_quote_length - len(ellipsis) - 1
     current_length = 0
     for word in words:
-        # +1 for space between words
         word_length = len(word) + (1 if truncated_words else 0)
         if current_length + word_length <= available:
             truncated_words.append(word)
             current_length += word_length
         else:
             break
-    
-    # Build final text with ellipsis
-    if truncated_words:
-        truncated_quote = " ".join(truncated_words) + ellipsis
-    else:
-        # Edge case: even first word doesn't fit
-        truncated_quote = ellipsis
-    
+    truncated_quote = " ".join(truncated_words) + ellipsis if truncated_words else ellipsis
     if suffix:
         return f"{truncated_quote} {suffix}"
     return truncated_quote
+
 
 def build_x_text(full_text: str) -> str:
     """
@@ -619,67 +612,40 @@ def build_x_text(full_text: str) -> str:
       - always preserve all hashtags and URL
     """
     parts = [p.strip() for p in full_text.split("\n\n") if p.strip()]
-    
-    # Use parts[1] (the opening quote) instead of parts[0] (the date/title)
-    # Fall back to parts[0] if there's only one part
     if len(parts) > 1:
         quote = parts[1]
     elif parts:
         quote = parts[0]
     else:
         quote = ""
-    
-    # Flatten whitespace in quote
     quote = " ".join(quote.split())
-    
-    # Build the hashtags and URL suffix (always included)
     hashtags_str = " ".join(X_HASHTAGS)
     url = X_URL
-    
-    # Calculate the suffix (hashtags + URL with spaces)
     suffix_parts = []
     if hashtags_str:
         suffix_parts.append(hashtags_str)
     if url:
         suffix_parts.append(url)
     suffix = " ".join(suffix_parts)
-    
-    # Reserve space for suffix plus one space between quote and suffix
-    # X/Twitter limit is 280 characters
     reserved = len(suffix) + 1 if suffix else 0
     max_quote_length = 280 - reserved
-    
-    # If quote fits, return as-is
     if len(quote) <= max_quote_length:
         if suffix:
             return f"{quote} {suffix}"
         return quote
-    
-    # Quote is too long - truncate word by word from end
     words = quote.split()
     truncated_words = []
     ellipsis = "..."
-    
-    # Reserve space for ellipsis too
-    available = max_quote_length - len(ellipsis) - 1  # -1 for space before ellipsis
-    
+    available = max_quote_length - len(ellipsis) - 1
     current_length = 0
     for word in words:
-        # +1 for space between words
         word_length = len(word) + (1 if truncated_words else 0)
         if current_length + word_length <= available:
             truncated_words.append(word)
             current_length += word_length
         else:
             break
-    
-    # Build final text with ellipsis
-    if truncated_words:
-        truncated_quote = " ".join(truncated_words) + ellipsis
-    else:
-        # Edge case: even first word doesn't fit
-        truncated_quote = ellipsis
-    
+    truncated_quote = " ".join(truncated_words) + ellipsis if truncated_words else ellipsis
     if suffix:
         return f"{truncated_quote} {suffix}"
     return truncated_quote
@@ -696,67 +662,40 @@ def post_to_bluesky(text: str, image_path: Optional[Path] = None):
     if not BSKY_USERNAME or not BSKY_APP_PASSWORD:
         logger.warning("Bluesky credentials not configured; skipping Bluesky post.")
         return None
-
     try:
         client = BskyClient()
         logger.info("Logging into Bluesky as %s", BSKY_USERNAME)
         client.login(BSKY_USERNAME, BSKY_APP_PASSWORD)
-
-        # Build facets for hashtags and URLs to make them clickable
         facets = []
-        
-        # Find and create facets for hashtags
         import re
         hashtag_pattern = r'#\w+'
         for match in re.finditer(hashtag_pattern, text):
             facets.append({
-                "index": {
-                    "byteStart": match.start(),
-                    "byteEnd": match.end()
-                },
-                "features": [{
-                    "$type": "app.bsky.richtext.facet#tag",
-                    "tag": match.group()[1:]  # Remove the # symbol
-                }]
+                "index": {"byteStart": match.start(), "byteEnd": match.end()},
+                "features": [{"$type": "app.bsky.richtext.facet#tag", "tag": match.group()[1:]}]
             })
-        
-        # Find and create facets for URLs
         url_pattern = r'https?://[^\s]+'
         for match in re.finditer(url_pattern, text):
             facets.append({
-                "index": {
-                    "byteStart": match.start(),
-                    "byteEnd": match.end()
-                },
-                "features": [{
-                    "$type": "app.bsky.richtext.facet#link",
-                    "uri": match.group()
-                }]
+                "index": {"byteStart": match.start(), "byteEnd": match.end()},
+                "features": [{"$type": "app.bsky.richtext.facet#link", "uri": match.group()}]
             })
-
-        # Prepare image embed if provided
         embed = None
         if image_path and image_path.exists():
             with open(image_path, "rb") as f:
                 blob = client.upload_blob(f.read())
             embed = {
                 "$type": "app.bsky.embed.images",
-                "images": [{
-                    "image": blob.blob,
-                    "alt": "Daily Meditation from Voices of Recovery"
-                }]
+                "images": [{"image": blob.blob, "alt": "Daily Meditation from Voices of Recovery"}]
             }
-
         logger.info("Sending post to Bluesky with %d facets...", len(facets))
-        
-        # Create the post with facets
         record = client.send_post(text=text, facets=facets, embed=embed)
-        
         logger.info("Bluesky post successful: %s", getattr(record, "uri", "<no-uri>"))
         return record
     except Exception as e:
         logger.exception("Failed to post to Bluesky: %s", e)
         return None
+
 
 def post_to_x(text: str, image_path: Optional[Path] = None):
     """Post to X/Twitter using API v2"""
@@ -766,19 +705,15 @@ def post_to_x(text: str, image_path: Optional[Path] = None):
     if not all([X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET]):
         logger.warning("X credentials missing; skipping X post.")
         return None
-
     try:
-        # Use API v2 Client (free tier supports this)
         client = tweepy.Client(
             consumer_key=X_API_KEY,
             consumer_secret=X_API_SECRET,
             access_token=X_ACCESS_TOKEN,
             access_token_secret=X_ACCESS_TOKEN_SECRET
         )
-        
         media_ids = None
         if image_path and image_path.exists():
-            # Media upload still uses v1.1 API (which free tier allows)
             logger.info("Uploading media to X: %s", image_path)
             auth = tweepy.OAuth1UserHandler(
                 consumer_key=X_API_KEY,
@@ -789,19 +724,14 @@ def post_to_x(text: str, image_path: Optional[Path] = None):
             api_v1 = tweepy.API(auth)
             media = api_v1.media_upload(str(image_path))
             media_ids = [media.media_id_string]
-        
         logger.info("Posting tweet via API v2...")
-        
-        # Post using v2 Client
         if media_ids:
             response = client.create_tweet(text=text, media_ids=media_ids)
         else:
             response = client.create_tweet(text=text)
-        
         tweet_id = response.data['id']
         logger.info("Tweet posted successfully: %s", tweet_id)
         return response
-        
     except Exception as e:
         logger.exception("Failed to post to X: %s", e)
         return None
@@ -815,28 +745,41 @@ def parse_args() -> tuple[str, bool]:
     """Return (mmdd, test_mode)."""
     args = sys.argv[1:]
     test_mode = False
-
     if "--test" in args:
         test_mode = True
         args.remove("--test")
-
     if args:
         mmdd = mm_dd_from_arg(args[0])
     else:
         mmdd = datetime.now().strftime("%m-%d")
-
     return mmdd, test_mode
 
 
 def main():
     mmdd, test_mode = parse_args()
     txt_path, png_path = get_paths_for(mmdd)
+    posted_path = MED_DIR / f"{mmdd}.posted"
 
-    # Ensure we have text cached or scraped
+    # ── Duplicate post guard ──────────────────────────────────────────────────
+    # If this date's .posted file exists, we already posted today. Exit cleanly
+    # without posting again. This prevents duplicates when the workflow is
+    # manually triggered for testing after the scheduled run has already fired.
+    #
+    # To force a re-post: delete meditations/MM-DD.posted from the repo,
+    # commit, and re-trigger the workflow.
+    if not test_mode and posted_path.exists():
+        logger.info(
+            "Already posted for %s (found %s) — skipping. "
+            "Delete this file to force a re-post.",
+            mmdd, posted_path.name
+        )
+        print(f"\n=== ALREADY POSTED: {mmdd} — nothing to do ===\n")
+        sys.exit(0)
+
+    # ── Scrape or load cached text ────────────────────────────────────────────
     if txt_path.exists():
         full_text = txt_path.read_text(encoding="utf-8")
         logger.info("Loaded text cache: %s", txt_path)
-        # Derive page_title from first block of text
         parts = [p.strip() for p in full_text.split("\n\n") if p.strip()]
         page_title = parts[0] if parts else mmdd
     else:
@@ -848,14 +791,12 @@ def main():
         txt_path.write_text(full_text, encoding="utf-8")
         logger.info("Saved text cache: %s", txt_path)
 
+    # ── Test mode ─────────────────────────────────────────────────────────────
     if test_mode:
-        # TEST MODE: scrape + generate thumbnail (style B), show post previews, no posting
         logger.info("TEST MODE: Generating thumbnail and skipping posts.")
         compose_variant("b", page_title, full_text, png_path)
-
         bsky_text = build_bsky_text(full_text)
         x_text = build_x_text(full_text)
-
         print("\n" + "=" * 70)
         print("=== SUMMARY (TEST MODE) ===")
         print("=" * 70)
@@ -876,31 +817,19 @@ def main():
         print("=" * 70 + "\n")
         return
 
-    # NORMAL MODE:
-    # Preserve previous behavior: ensure a single MM-DD.png exists using style 'b'
+    # ── Normal mode ───────────────────────────────────────────────────────────
     if not png_path.exists():
-        # NOTE: To change the default style used for the live MM-DD.png image,
-        # simply change 'b' below to 'a', 'c', 'd', or 'e'.
-        # The five styles are:
-        #   a: flat charcoal
-        #   b: blurred forest + charcoal overlay
-        #   c: charcoal gradient
-        #   d: textured charcoal
-        #   e: semi-transparent charcoal over forest
+        # NOTE: To change the default image style, change 'b' to a/c/d/e.
+        #   a: flat charcoal  b: blurred forest  c: gradient
+        #   d: textured       e: semi-transparent forest
         compose_variant("b", page_title, full_text, png_path)
 
-    # Build post text for both platforms
     bsky_text = build_bsky_text(full_text)
     x_text = build_x_text(full_text)
 
     bsky_res = post_to_bluesky(bsky_text, png_path if png_path.exists() else None)
     x_res = post_to_x(x_text, png_path if png_path.exists() else None)
 
-    # Determine overall success
-    # Partial success (one platform posts, one fails) is logged as a warning
-    # but does not exit non-zero — the commit step should still run.
-    # Total failure (both platforms fail) exits non-zero so the workflow
-    # can detect it and fire a Pushover notification.
     bsky_ok = bsky_res is not None
     x_ok = x_res is not None
 
@@ -919,9 +848,21 @@ def main():
         mmdd, bsky_ok, x_ok
     )
 
-    # Exit non-zero only if BOTH platforms failed — this signals the workflow
-    # to fire a Pushover alert. A single-platform failure is surfaced in logs
-    # and the summary but does not fail the workflow step.
+    # ── Write .posted flag if at least one platform succeeded ─────────────────
+    # This prevents duplicate posts on subsequent runs the same day.
+    # The file is committed to the repo by the workflow commit step.
+    if bsky_ok or x_ok:
+        timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        posted_path.write_text(
+            f"posted: {timestamp}\n"
+            f"bluesky: {'ok' if bsky_ok else 'failed'}\n"
+            f"x_twitter: {'ok' if x_ok else 'failed'}\n"
+        )
+        logger.info("Wrote duplicate guard: %s", posted_path.name)
+
+    # ── Exit non-zero only on total failure ───────────────────────────────────
+    # Signals the workflow to fire a Pushover alert.
+    # A single-platform failure is surfaced in logs but does not fail the step.
     if not bsky_ok and not x_ok:
         logger.error("Both social posts failed — exiting with code 1.")
         sys.exit(1)
