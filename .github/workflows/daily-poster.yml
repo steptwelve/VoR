@@ -1,5 +1,53 @@
 name: Daily Meditation Poster
 
+# ─────────────────────────────────────────────────────────────────────────────
+# VoR Daily Meditation — GitHub Actions Workflow
+# Version: 2026-03-11.02
+#
+# Changes in .02 (2026-03-11):
+# - Replaced config.yml video flag check with GitHub Actions Variables
+#   (vars.ENABLE_VIDEO, vars.ENABLE_SPANISH) so flags can be toggled in the
+#   GitHub UI without touching code or making commits.
+# - Added Pushover notifications on any step failure so Jackson is alerted
+#   immediately rather than discovering problems via email hours later.
+# - Added soft Pushover warning (low priority) when a Pexels video is skipped
+#   due to 404 — surfaced via /tmp/pexels_warning.txt flag file written by
+#   download_background.py when it falls back to an alternate video.
+# - Isolated video pipeline steps with continue-on-error so a video failure
+#   does not prevent the commit step from running.
+# - Commit step now always runs (even if video fails) so meditation text and
+#   state files are always saved to the repo.
+# - Removed dead config.yml flag-check step (replaced by vars.* above).
+#
+# Changes in .01 (original):
+# - Initial workflow: scrape + social post + video build + YouTube upload +
+#   commit. All steps ran as a single linear job with no failure isolation.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# GITHUB ACTIONS VARIABLES (Settings → Secrets and variables → Variables):
+#   ENABLE_VIDEO    — set to 'true' to enable video build + YouTube upload
+#   ENABLE_SPANISH  — set to 'true' to enable Spanish translation + video
+#                     (only takes effect when ENABLE_VIDEO is also 'true')
+#
+# GITHUB SECRETS REQUIRED (Settings → Secrets and variables → Secrets):
+#   BSKY_USERNAME, BSKY_APP_PASSWORD       — Bluesky credentials
+#   X_API_KEY, X_API_SECRET                — X/Twitter API credentials
+#   X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET  — X/Twitter access credentials
+#   PEXELS_API_KEY                         — Pexels API key for backgrounds
+#   ANTHROPIC_API_KEY                      — Anthropic API (Spanish translation)
+#   YT_TOKEN_JSON                          — YouTube OAuth token (English channel)
+#   YT_TOKEN_JSON_ES                       — YouTube OAuth token (Spanish channel)
+#   PUSHOVER_USER_KEY                      — Pushover user key
+#   PUSHOVER_APP_TOKEN                     — Pushover app token for VoR
+#
+# PUSHOVER PRIORITY LEVELS USED:
+#   -1  Quiet warning  — Pexels video skipped (404), fallback used
+#    0  Normal         — Step failure needing investigation
+#    1  High           — Total social post failure (nothing posted today)
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
 on:
   schedule:
     # Runs at 1 AM Pacific (9 AM UTC)
@@ -13,6 +61,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+      # ── Setup ────────────────────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -29,8 +79,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # ── Step 1: Scrape + post to Bluesky/Twitter ─────────────
-      - name: Run daily poster (scrape + social posts)
+      # ── Step 1: Scrape meditation text + post to Bluesky and X ───────────────
+      #
+      # This is the foundation step. If the SAA website scrape fails, there is
+      # nothing to post or build, so the entire job stops here.
+      #
+      # daily_poster.py exits non-zero in two cases:
+      #   1. Scrape fails (RuntimeError from saa-connect.org)
+      #   2. BOTH Bluesky and X posts fail (total social failure)
+      # A single-platform failure logs a warning but does not exit non-zero.
+      #
+      - name: Scrape meditation and post to Bluesky + X
+        id: social
         env:
           BSKY_USERNAME: ${{ secrets.BSKY_USERNAME }}
           BSKY_APP_PASSWORD: ${{ secrets.BSKY_APP_PASSWORD }}
@@ -41,85 +101,181 @@ jobs:
         run: |
           python daily_poster.py
 
-      # ── Step 2: Check config flags ───────────────────────────
-      - name: Check config flags
-        id: config
+      # If Step 1 fails, notify via Pushover at HIGH priority and stop.
+      # Nothing downstream is meaningful without today's meditation text.
+      - name: Notify — Step 1 failure (scrape or total social post failure)
+        if: failure() && steps.social.outcome == 'failure'
         run: |
-          python - <<'EOF'
-          from vor_config import config
-          config.summary()
-          import os
-          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-              f.write(f"video_enabled={'true' if config.video_enabled else 'false'}\n")
-              f.write(f"spanish_enabled={'true' if config.spanish_enabled else 'false'}\n")
-          EOF
+          curl -s \
+            --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
+            --form-string "user=${{ secrets.PUSHOVER_USER_KEY }}" \
+            --form-string "title=VoR FAILURE: Social post" \
+            --form-string "message=Daily meditation scrape or social posting failed on $(date +'%m-%d'). Check GitHub Actions logs." \
+            --form-string "priority=1" \
+            https://api.pushover.net/1/messages.json
 
-      # ── Step 3: Install ffmpeg + edge-tts (video only) ───────
-      - name: Install video dependencies
-        if: steps.config.outputs.video_enabled == 'true'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y ffmpeg
-          pip install edge-tts pillow
-
-      # ── Step 4: Download background video from Pexels ────────
-      - name: Download background video
-        if: steps.config.outputs.video_enabled == 'true'
+      # ── Step 2: Download background video from Pexels ────────────────────────
+      #
+      # Gated by vars.ENABLE_VIDEO. Skipped entirely if video is disabled.
+      #
+      # download_background.py writes /tmp/pexels_warning.txt if it had to skip
+      # a 404 video and fall back to the next one in rotation. This file is
+      # checked after the download to send a quiet Pushover warning.
+      #
+      # If ALL videos in backgrounds.txt fail (very unlikely), the script exits
+      # non-zero. In that case the video build steps are skipped via their
+      # needs-background condition, but the commit step still runs.
+      #
+      - name: Download background video from Pexels
+        id: background
+        if: vars.ENABLE_VIDEO == 'true'
+        continue-on-error: true
         env:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
         run: |
           python download_background.py --output /tmp/background.mp4
 
-      # ── Step 5: Build English video ───────────────────────────
+      # Send a quiet Pushover warning if any Pexels IDs were skipped (404).
+      # Priority -1 = no sound, no vibration; shows up in notification history.
+      - name: Notify — Pexels video skipped (soft warning)
+        if: vars.ENABLE_VIDEO == 'true' && steps.background.outcome == 'success'
+        run: |
+          if [ -f /tmp/pexels_warning.txt ]; then
+            MSG=$(cat /tmp/pexels_warning.txt)
+            curl -s \
+              --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
+              --form-string "user=${{ secrets.PUSHOVER_USER_KEY }}" \
+              --form-string "title=VoR Warning: Pexels video skipped" \
+              --form-string "message=${MSG}" \
+              --form-string "priority=-1" \
+              https://api.pushover.net/1/messages.json
+          fi
+
+      # Send a normal-priority alert if the background download failed entirely.
+      - name: Notify — background download failed
+        if: vars.ENABLE_VIDEO == 'true' && steps.background.outcome == 'failure'
+        run: |
+          curl -s \
+            --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
+            --form-string "user=${{ secrets.PUSHOVER_USER_KEY }}" \
+            --form-string "title=VoR FAILURE: Background video" \
+            --form-string "message=All Pexels video IDs failed on $(date +'%m-%d'). No video built today. Check backgrounds.txt." \
+            --form-string "priority=0" \
+            https://api.pushover.net/1/messages.json
+
+      # ── Step 3: Install video dependencies ───────────────────────────────────
+      #
+      # Only runs if video is enabled AND the background downloaded successfully.
+      # ffmpeg and edge-tts are not in requirements.txt (no cost to install them
+      # on every run when video is disabled), so we install them on-demand here.
+      #
+      - name: Install video dependencies (ffmpeg + edge-tts)
+        if: vars.ENABLE_VIDEO == 'true' && steps.background.outcome == 'success'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          pip install edge-tts pillow
+
+      # ── Step 4: Build and upload English video to YouTube ────────────────────
+      #
+      # Runs only if: video enabled + background succeeded.
+      # continue-on-error so a build or upload failure does not block Spanish
+      # or the commit step.
+      #
       - name: Build English video
-        if: steps.config.outputs.video_enabled == 'true'
+        id: build_en
+        if: vars.ENABLE_VIDEO == 'true' && steps.background.outcome == 'success'
+        continue-on-error: true
         run: |
           MMDD=$(date +'%m-%d')
           YEAR=$(date +'%Y')
           BACKGROUND_VIDEO=/tmp/background.mp4 ./build-video.sh $MMDD $YEAR
 
-      # ── Step 6: Upload English video to YouTube ───────────────
       - name: Upload English video to YouTube
-        if: steps.config.outputs.video_enabled == 'true'
+        id: upload_en
+        if: vars.ENABLE_VIDEO == 'true' && steps.build_en.outcome == 'success'
+        continue-on-error: true
         env:
           YT_TOKEN_JSON: ${{ secrets.YT_TOKEN_JSON }}
         run: |
           python upload_youtube.py
 
-      # ── Step 7: Translate to Spanish ─────────────────────────
-      - name: Translate meditation to Spanish
+      - name: Notify — English video failure
         if: |
-          steps.config.outputs.video_enabled == 'true' &&
-          steps.config.outputs.spanish_enabled == 'true'
+          vars.ENABLE_VIDEO == 'true' &&
+          (steps.build_en.outcome == 'failure' || steps.upload_en.outcome == 'failure')
+        run: |
+          STAGE="build"
+          if [ "${{ steps.build_en.outcome }}" == "success" ]; then STAGE="upload"; fi
+          curl -s \
+            --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
+            --form-string "user=${{ secrets.PUSHOVER_USER_KEY }}" \
+            --form-string "title=VoR FAILURE: English video ${STAGE}" \
+            --form-string "message=English video ${STAGE} failed on $(date +'%m-%d'). Check GitHub Actions logs." \
+            --form-string "priority=0" \
+            https://api.pushover.net/1/messages.json
+
+      # ── Step 5: Translate, build, and upload Spanish video to YouTube ─────────
+      #
+      # Gated by BOTH vars.ENABLE_VIDEO and vars.ENABLE_SPANISH.
+      # Each sub-step gates on the prior one succeeding, with continue-on-error
+      # so a Spanish failure never blocks the commit step.
+      #
+      - name: Translate meditation to Spanish
+        id: translate_es
+        if: vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SPANISH == 'true' && steps.background.outcome == 'success'
+        continue-on-error: true
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           MMDD=$(date +'%m-%d')
           python translate_meditation.py --date $MMDD
 
-      # ── Step 8: Build Spanish video ───────────────────────────
       - name: Build Spanish video
-        if: |
-          steps.config.outputs.video_enabled == 'true' &&
-          steps.config.outputs.spanish_enabled == 'true'
+        id: build_es
+        if: vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SPANISH == 'true' && steps.translate_es.outcome == 'success'
+        continue-on-error: true
         run: |
           MMDD=$(date +'%m-%d')
           YEAR=$(date +'%Y')
           LANG=es BACKGROUND_VIDEO=/tmp/background.mp4 ./build-video.sh $MMDD $YEAR
 
-      # ── Step 9: Upload Spanish video to YouTube ───────────────
       - name: Upload Spanish video to YouTube
-        if: |
-          steps.config.outputs.video_enabled == 'true' &&
-          steps.config.outputs.spanish_enabled == 'true'
+        id: upload_es
+        if: vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SPANISH == 'true' && steps.build_es.outcome == 'success'
+        continue-on-error: true
         env:
           YT_TOKEN_JSON: ${{ secrets.YT_TOKEN_JSON }}
           YT_TOKEN_JSON_ES: ${{ secrets.YT_TOKEN_JSON_ES }}
         run: |
           LANG=es python upload_youtube.py
 
-      # ── Step 10: Commit new files to repo ─────────────────────
+      - name: Notify — Spanish video failure
+        if: |
+          vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SPANISH == 'true' &&
+          (steps.translate_es.outcome == 'failure' || steps.build_es.outcome == 'failure' || steps.upload_es.outcome == 'failure')
+        run: |
+          if [ "${{ steps.translate_es.outcome }}" == "failure" ]; then STAGE="translation"; \
+          elif [ "${{ steps.build_es.outcome }}" == "failure" ]; then STAGE="build"; \
+          else STAGE="upload"; fi
+          curl -s \
+            --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
+            --form-string "user=${{ secrets.PUSHOVER_USER_KEY }}" \
+            --form-string "title=VoR FAILURE: Spanish video ${STAGE}" \
+            --form-string "message=Spanish video ${STAGE} failed on $(date +'%m-%d'). Check GitHub Actions logs." \
+            --form-string "priority=0" \
+            https://api.pushover.net/1/messages.json
+
+      # ── Step 6: Commit new files to repo ─────────────────────────────────────
+      #
+      # Always runs — even if video steps failed. This ensures meditation text
+      # files and .vor-state.json are committed regardless of video pipeline
+      # outcome. The 'if: always()' overrides GitHub's default behavior of
+      # skipping steps after a failure.
+      #
       - name: Commit and push new files
+        id: commit
+        if: always()
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
@@ -133,3 +289,14 @@ jobs:
             git rebase origin/main || git rebase --skip
             git push origin main
           fi
+
+      - name: Notify — commit step failed
+        if: always() && steps.commit.outcome == 'failure'
+        run: |
+          curl -s \
+            --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
+            --form-string "user=${{ secrets.PUSHOVER_USER_KEY }}" \
+            --form-string "title=VoR FAILURE: Git commit" \
+            --form-string "message=Git commit/push failed on $(date +'%m-%d'). Meditation files may not be saved to repo." \
+            --form-string "priority=0" \
+            https://api.pushover.net/1/messages.json

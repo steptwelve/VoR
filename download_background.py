@@ -1,6 +1,18 @@
 """
 download_background.py
 
+Version: 2026-03-11.02
+
+Changes in .02 (2026-03-11):
+- When a Pexels video ID returns 404 and a fallback is used, writes a
+  warning message to /tmp/pexels_warning.txt. The GitHub Actions workflow
+  checks for this file after the download step and sends a quiet Pushover
+  notification (priority -1) so Jackson is informed without alarm.
+- No change to exit behavior: script still exits 0 on any successful
+  download, exits 1 only if ALL IDs in backgrounds.txt fail.
+
+Version: 2026-03-11.01 (original)
+
 Downloads the next background video from Pexels for the daily build.
 Uses backgrounds.txt for the video ID list and .vor-state.json for rotation state.
 
@@ -21,6 +33,9 @@ from dotenv import load_dotenv
 PROJECT_ROOT = Path(__file__).resolve().parent
 STATE_FILE   = PROJECT_ROOT / ".vor-state.json"
 BACKGROUNDS  = PROJECT_ROOT / "backgrounds.txt"
+
+# File written when a 404 fallback occurs; checked by workflow for Pushover warning
+PEXELS_WARNING_FILE = Path("/tmp/pexels_warning.txt")
 
 load_dotenv(PROJECT_ROOT / ".env")
 API_KEY = os.getenv("PEXELS_API_KEY")
@@ -114,6 +129,8 @@ def main():
         print("❌ No valid video IDs in backgrounds.txt")
         sys.exit(1)
 
+    skipped_ids = []
+
     # Try IDs in rotation order, skip any that return 404
     for attempt in range(len(ids)):
         video_id, idx = get_next_video_id(ids)
@@ -121,7 +138,21 @@ def main():
         url, author = get_download_url(video_id)
         if url is None:
             print(f"  ⚠️  ID {video_id} not found on Pexels (404), trying next...")
+            skipped_ids.append(video_id)
             continue
+
+        # If we had to skip any IDs to get here, write a warning file so the
+        # workflow can send a quiet Pushover notification to Jackson.
+        if skipped_ids:
+            skipped_str = ", ".join(str(i) for i in skipped_ids)
+            warning_msg = (
+                f"Pexels 404 on {len(skipped_ids)} video ID(s): {skipped_str}. "
+                f"Used ID {video_id} instead. "
+                f"Consider removing stale IDs from backgrounds.txt."
+            )
+            PEXELS_WARNING_FILE.write_text(warning_msg)
+            print(f"  ⚠️  Warning written to {PEXELS_WARNING_FILE}")
+
         print(f"[download_background] Author: {author}")
         download_video(url, args.output)
         print(f"[download_background] Ready: {args.output}")

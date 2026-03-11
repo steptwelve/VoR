@@ -1,6 +1,19 @@
 """
 daily_poster.py
 
+Version: 2026-03-11.10
+Generated: 2026-03-11
+
+Changes in the .10 version:
+- main() now exits with code 1 if BOTH Bluesky and X/Twitter posts fail.
+  Previously the script always exited 0 (success) even on total posting
+  failure, meaning GitHub Actions had no visibility into silent failures.
+  Now: if both posts return None, sys.exit(1) is called so the workflow
+  can detect the failure and trigger a Pushover notification.
+- Scrape failure already exited non-zero; that behavior is unchanged.
+- Partial success (one platform posts, one fails) still exits 0 but
+  logs a warning — the summary will show which platform failed.
+
 Version: 2025-11-24.09
 Generated: 2025-11-24 07:05:00
 
@@ -131,7 +144,7 @@ PARA_SPACING = 18                       # between paragraphs
 TITLE_TO_DATE_SPACING = 20
 DATE_TO_BODY_SPACING = 24
 
-QUOTE_CHARS = ['"', '“', '”', '‘', '’']
+QUOTE_CHARS = ['"', '\u201c', '\u201d', '\u2018', '\u2019']
 
 # Hashtags and URL (for Bluesky + X)
 BSKY_HASHTAGS = [
@@ -867,7 +880,7 @@ def main():
     # Preserve previous behavior: ensure a single MM-DD.png exists using style 'b'
     if not png_path.exists():
         # NOTE: To change the default style used for the live MM-DD.png image,
-        # simply change 'a' below to 'b', 'c', 'd', or 'e'.
+        # simply change 'b' below to 'a', 'c', 'd', or 'e'.
         # The five styles are:
         #   a: flat charcoal
         #   b: blurred forest + charcoal overlay
@@ -876,24 +889,42 @@ def main():
         #   e: semi-transparent charcoal over forest
         compose_variant("b", page_title, full_text, png_path)
 
-    # Build Bsky and X texts
-    # Generate and save post text previews
+    # Build post text for both platforms
     bsky_text = build_bsky_text(full_text)
     x_text = build_x_text(full_text)
 
     bsky_res = post_to_bluesky(bsky_text, png_path if png_path.exists() else None)
     x_res = post_to_x(x_text, png_path if png_path.exists() else None)
 
-    # Clear summary
+    # Determine overall success
+    # Partial success (one platform posts, one fails) is logged as a warning
+    # but does not exit non-zero — the commit step should still run.
+    # Total failure (both platforms fail) exits non-zero so the workflow
+    # can detect it and fire a Pushover notification.
+    bsky_ok = bsky_res is not None
+    x_ok = x_res is not None
+
+    if not bsky_ok:
+        logger.warning("Bluesky post FAILED for %s", mmdd)
+    if not x_ok:
+        logger.warning("X/Twitter post FAILED for %s", mmdd)
+
     print("\n=== SUMMARY ===")
-    print(f"Date: {mmdd}")
-    print(f"Bluesky: {'SUCCESS' if bsky_res else 'FAILED'}")
-    print(f"X/Twitter: {'SUCCESS' if x_res else 'FAILED'}\n")
+    print(f"Date:      {mmdd}")
+    print(f"Bluesky:   {'SUCCESS' if bsky_ok else 'FAILED'}")
+    print(f"X/Twitter: {'SUCCESS' if x_ok else 'FAILED'}\n")
 
     logger.info(
         "Finished run for %s — Bluesky: %s  X: %s",
-        mmdd, bool(bsky_res), bool(x_res)
+        mmdd, bsky_ok, x_ok
     )
+
+    # Exit non-zero only if BOTH platforms failed — this signals the workflow
+    # to fire a Pushover alert. A single-platform failure is surfaced in logs
+    # and the summary but does not fail the workflow step.
+    if not bsky_ok and not x_ok:
+        logger.error("Both social posts failed — exiting with code 1.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
