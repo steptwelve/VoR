@@ -2,7 +2,13 @@ name: Daily Meditation Poster
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VoR Daily Meditation — GitHub Actions Workflow
-# Version: 2026-03-11.02
+# Version: 2026-03-11.03
+#
+# Changes in .03 (2026-03-11):
+# - Fixed commit step: .vor-state.json is now added conditionally with
+#   'git add --ignore-missing' so the commit does not fail when video is
+#   disabled and download_background.py never ran (file not present in runner).
+#   Previously this caused exit code 128 and a spurious Pushover notification.
 #
 # Changes in .02 (2026-03-11):
 # - Replaced config.yml video flag check with GitHub Actions Variables
@@ -273,6 +279,11 @@ jobs:
       # outcome. The 'if: always()' overrides GitHub's default behavior of
       # skipping steps after a failure.
       #
+      # Uses --ignore-missing on .vor-state.json because that file is only
+      # present in the runner when video is enabled and download_background.py
+      # has run. When video is disabled the file does not exist and a plain
+      # 'git add' would exit with code 128.
+      #
       - name: Commit and push new files
         id: commit
         if: always()
@@ -280,7 +291,8 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git pull --rebase
-          git add meditations/*.txt output/*.png .vor-state.json
+          git add meditations/*.txt output/*.png
+          git add --ignore-missing .vor-state.json
           if git diff --staged --quiet; then
             echo "No new files to commit"
           else
