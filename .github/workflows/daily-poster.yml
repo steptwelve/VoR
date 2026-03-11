@@ -2,13 +2,17 @@ name: Daily Meditation Poster
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VoR Daily Meditation — GitHub Actions Workflow
-# Version: 2026-03-11.03
+# Version: 2026-03-11.04
+#
+# Changes in .04 (2026-03-11):
+# - Fixed commit step again: replaced 'git add --ignore-missing' (which
+#   requires --dry-run on the runner's git version and exits 128 without it)
+#   with a shell conditional: [ -f .vor-state.json ] && git add .vor-state.json
+#   This is the correct portable approach across all git versions.
 #
 # Changes in .03 (2026-03-11):
-# - Fixed commit step: .vor-state.json is now added conditionally with
-#   'git add --ignore-missing' so the commit does not fail when video is
-#   disabled and download_background.py never ran (file not present in runner).
-#   Previously this caused exit code 128 and a spurious Pushover notification.
+# - Attempted fix for .vor-state.json using --ignore-missing — did not work
+#   on runner git version (2.53.0 requires --dry-run with that flag).
 #
 # Changes in .02 (2026-03-11):
 # - Replaced config.yml video flag check with GitHub Actions Variables
@@ -279,10 +283,9 @@ jobs:
       # outcome. The 'if: always()' overrides GitHub's default behavior of
       # skipping steps after a failure.
       #
-      # Uses --ignore-missing on .vor-state.json because that file is only
-      # present in the runner when video is enabled and download_background.py
-      # has run. When video is disabled the file does not exist and a plain
-      # 'git add' would exit with code 128.
+      # .vor-state.json only exists in the runner when video is enabled and
+      # download_background.py has run. We check for it with a shell conditional
+      # before adding — 'git add' on a missing file exits 128.
       #
       - name: Commit and push new files
         id: commit
@@ -292,7 +295,7 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git pull --rebase
           git add meditations/*.txt output/*.png
-          git add --ignore-missing .vor-state.json
+          [ -f .vor-state.json ] && git add .vor-state.json || echo "No .vor-state.json to commit (video disabled)"
           if git diff --staged --quiet; then
             echo "No new files to commit"
           else
