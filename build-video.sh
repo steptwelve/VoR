@@ -278,7 +278,7 @@ bg = bg.resize((int(iw*scale), int(ih*scale)), Image.LANCZOS)
 crop_top = int(bg.height * 0.28)
 bg = bg.crop((0, crop_top, W, crop_top + H))
 
-# Semi-transparent dark box for readability (matching original style)
+# Semi-transparent dark box for readability
 overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
 box_draw = ImageDraw.Draw(overlay)
 box_draw.rectangle([(80, 100), (1840, 760)], fill=(0, 0, 0, 110))
@@ -301,30 +301,55 @@ def draw_centered(draw, text, font, y, color=(255,255,255)):
     x = (W - (bb[2]-bb[0])) // 2
     draw.text((x, y), text, font=font, fill=color)
 
-draw_centered(draw, "To learn more about SAA, visit:", load_font(54), 170)
-draw_centered(draw, "saa-recovery.org", load_font(108), 245, color=(255,255,255))
+lang = "$LANG"
 
-quote_lines = [
-    '"A fellowship of individuals who share their',
-    'experience, strength, and hope with each other',
-    'so they may overcome their sexual addiction',
-    'and help others recover from sexual addiction',
-    'or dependency."',
-]
+if lang == "es":
+    cta_line1 = "Para saber más sobre SAA, visita:"
+    cta_url   = "saa-recovery.org"
+    quote_lines = [
+        '"Una confraternidad de personas que comparten',
+        'su experiencia, fortaleza y esperanza entre sí',
+        'para superar su adicción sexual y ayudar a otros',
+        'a recuperarse de la adicción o dependencia sexual."',
+    ]
+    attribution = "Video: Pexels.com   |   Narración: Microsoft Azure TTS"
+else:
+    cta_line1 = "To learn more about SAA, visit:"
+    cta_url   = "saa-recovery.org"
+    quote_lines = [
+        '"A fellowship of individuals who share their',
+        'experience, strength, and hope with each other',
+        'so they may overcome their sexual addiction',
+        'and help others recover from sexual addiction',
+        'or dependency."',
+    ]
+    attribution = "Video: Pexels.com   |   Narration: Microsoft Azure TTS"
+
+draw_centered(draw, cta_line1, load_font(54), 170)
+draw_centered(draw, cta_url, load_font(108), 245, color=(255,255,255))
+
 y = 410
 for line in quote_lines:
     draw_centered(draw, line, load_font(40), y, color=(210,225,210))
     y += 54
 
-draw_centered(draw, "Video: Pexels.com   |   Narration: Microsoft Azure TTS",
-              load_font(21), 720, color=(210,225,210))
+draw_centered(draw, attribution, load_font(21), 720, color=(210,225,210))
 
 combined.save("$WORK_DIR/endcard-frame.png")
 print("  ✅ End card frame generated")
 PYEOF
 
+if [ "$LANG" = "es" ]; then
+    ENDCARD_NARRATION_FILE="$TEMPLATES/endcard-narration-es.txt"
+    if [ ! -f "$ENDCARD_NARRATION_FILE" ]; then
+        ENDCARD_NARRATION_FILE="$ENDCARD_NARRATION"
+    fi
+else
+    ENDCARD_NARRATION_FILE="$ENDCARD_NARRATION"
+fi
+
 $EDGE_TTS --voice "$VOICE" \
-    --file "$ENDCARD_NARRATION" \
+    --file "$ENDCARD_NARRATION_FILE" \
     --write-media "$WORK_DIR/endcard-narration-raw.mp3"
 
 ffmpeg -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 1.0 \
