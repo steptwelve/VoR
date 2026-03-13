@@ -48,25 +48,23 @@ spanish:
     # "neutral-international" = no regional slang, broadly understood globally (recommended for ISO)
     # "neutral-latin-american" = broadly understood across US/Mexico/Latin America
     # "mexico" = es-MX, "spain" = es-ES, "us-spanish" = es-US
-    dialect: neutral-international
+    dialect: us-spanish
     # Full prompt instruction for translation (edit to taste)
     prompt: >
       Translate the following recovery meditation text to Spanish.
-      Use neutral, internationally accessible Spanish with no regional slang,
-      idioms, or vocabulary specific to any one country or dialect. The audience
-      includes Spanish speakers across Latin America, the United States, Spain,
-      and the rest of the world in a recovery context. Use simple, warm, spiritually
-      sensitive language. Preserve the first-person voice, the tone of humility
-      and hope, and the structure of the original. Do not add explanatory notes,
-      translator comments, or any text not present in the original.
+      Use US Spanish — the warm, accessible variety spoken by Spanish speakers
+      in the United States, including Mexican-American and broader Latino communities.
+      Avoid regional slang, but write naturally for a US Hispanic audience in a
+      recovery context. Use simple, warm, spiritually sensitive language.
+      Preserve the first-person voice, the tone of humility and hope, and the
+      structure of the original. Do not add explanatory notes, translator comments,
+      or any text not present in the original.
       Output only the translated text.
 
   # Edge TTS voices for Spanish narration — rotated daily
   # Mix of regional voices for broad international appeal
   voices:
-    - es-MX-JorgeNeural      # Mexico — neutral, widely understood
-    - es-MX-DaliaNeural      # Mexico — neutral, widely understood
     - es-US-AlonsoNeural     # US Spanish — clear and neutral
     - es-US-PalomaNeural     # US Spanish — clear and neutral
-    - es-AR-TomasNeural      # Argentina — adds Latin American range
-    - es-AR-ElenaNeural      # Argentina — adds Latin American range
+    - es-MX-JorgeNeural      # Mexico — natural for US Hispanic audience
+    - es-MX-DaliaNeural      # Mexico — natural for US Hispanic audience
