@@ -26,7 +26,7 @@ english:
 # ── Spanish Translation ───────────────────────────────────────
 spanish:
   # Master switch: false = no translation, no Spanish video
-  enabled: false
+  enabled: true
 
   # YouTube destination — choose ONE of:
   #   same_channel: true  → posts to same channel as English, different playlist

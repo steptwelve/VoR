@@ -5,6 +5,7 @@ __pycache__/
 *.so
 .Python
 venv/
+.venv/
 env/
 ENV/
 
@@ -19,6 +20,24 @@ ENV/
 .idea/
 *.swp
 *.swo
+
+# YouTube credentials — never commit these
+youtube_token.json
+youtube_client_secrets.json
+claude_creds.json
+channel_stats.json
+
+# Built output files — too large for git
+output/*.mp4
+output/*.png
+output/*.jpg
+
+# Background videos — too large for git
+backgrounds/*.mp4
+backgrounds/*.mov
+
+# Rotation state — managed at runtime, not in git
+.vor-state.json
 
 # Test output files (optional - remove if you want to track these)
 output/*-a.png

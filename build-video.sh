@@ -6,7 +6,7 @@
 # Usage:
 #   ./build-video.sh MM-DD YYYY
 #   BACKGROUND_VIDEO=/tmp/bg.mp4 ./build-video.sh MM-DD YYYY   (GitHub Actions)
-#   LANG=es ./build-video.sh MM-DD YYYY                         (Spanish)
+#   VOR_LANG=es ./build-video.sh MM-DD YYYY                      (Spanish)
 #
 # Output: ~/Documents/GitHub/Daily/output/MM-DD-FINAL.mp4
 #         ~/Documents/GitHub/Daily/output/MM-DD-titlecard.png
@@ -15,19 +15,24 @@
 set -e
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
+# Activate venv if present (local dev)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+[[ -f "$SCRIPT_DIR/.venv/bin/activate" ]] && source "$SCRIPT_DIR/.venv/bin/activate"
+
 # Self-healing: ensure this script stays executable
 chmod +x "$0" 2>/dev/null || true
 
 # ── Arguments ────────────────────────────────────────────────
 MMDD="${1:-$(date +%m-%d)}"
 YEAR="${2:-$(date +%Y)}"
-LANG="${LANG:-en}"
+# Use VOR_LANG to avoid collision with the system $LANG locale variable
+VOR_LANG="${VOR_LANG:-en}"
 
 # Date string for display (e.g. "March 10, 2026")
 MONTH_DAY=$(date -j -f "%m-%d-%Y" "${MMDD}-${YEAR}" "+%B %-d, %Y" 2>/dev/null \
-    || date -d "${YEAR}-${MMDD//-//}" "+%B %-d, %Y")
+    || python3 -c "from datetime import datetime; print(datetime.strptime('${MMDD}-${YEAR}', '%m-%d-%Y').strftime('%B %-d, %Y'))")
 
-if [ "$LANG" = "es" ]; then
+if [ "$VOR_LANG" = "es" ]; then
     echo "🎬 Building SPANISH meditation video for ${MONTH_DAY}..."
 else
     echo "🎬 Building meditation video for ${MONTH_DAY}..."
@@ -40,13 +45,13 @@ TEMPLATES="$DAILY_DIR/templates"
 BACKGROUNDS="$DAILY_DIR/backgrounds"
 MEDITATIONS="$DAILY_DIR/meditations"
 OUTPUT_DIR="$DAILY_DIR/output"
-WORK_DIR="/tmp/vor-build-${MMDD}-${LANG}"
+WORK_DIR="/tmp/vor-build-${MMDD}-${VOR_LANG}"
 
 CHATGPT_IMAGE="$BACKGROUNDS/ChatGPT-Image-VoR.png"
 ENDCARD_NARRATION="$TEMPLATES/endcard-narration.txt"
 
 # Language-specific source file
-if [ "$LANG" = "es" ]; then
+if [ "$VOR_LANG" = "es" ]; then
     MEDITATION_TEXT="$MEDITATIONS/${MMDD}-es.txt"
     FINAL_OUTPUT="$OUTPUT_DIR/${MMDD}-es-FINAL.mp4"
     TITLECARD_OUTPUT="$OUTPUT_DIR/${MMDD}-es-titlecard.png"
@@ -57,13 +62,37 @@ else
 fi
 
 STATE_FILE="$DAILY_DIR/.vor-state.json"
-PYTHON="$DAILY_DIR/venv/bin/python3"
-EDGE_TTS="$DAILY_DIR/venv/bin/edge-tts"
+# Use venv python if available, fall back to system python3
+if [[ -f "$DAILY_DIR/.venv/bin/python3" ]]; then
+    PYTHON="$DAILY_DIR/.venv/bin/python3"
+    EDGE_TTS="$DAILY_DIR/.venv/bin/edge-tts"
+elif [[ -f "$DAILY_DIR/venv/bin/python3" ]]; then
+    PYTHON="$DAILY_DIR/venv/bin/python3"
+    EDGE_TTS="$DAILY_DIR/venv/bin/edge-tts"
+else
+    PYTHON="python3"
+    EDGE_TTS="edge-tts"
+fi
 
 # Allow BACKGROUND_VIDEO to be passed in (for GitHub Actions)
 # Falls back to local backgrounds/ directory
 if [ -z "$BACKGROUND_VIDEO" ]; then
     BACKGROUND_VIDEO=""
+fi
+
+# ── Auto-download background (local dev only) ─────────────────
+# In GitHub Actions, BACKGROUND_VIDEO is passed in explicitly.
+# Locally, we run download_background.py to rotate to the next Pexels video.
+if [ -z "$BACKGROUND_VIDEO" ] && [ -z "$CI" ]; then
+    echo "📥 Downloading next background video from Pexels..."
+    LOCAL_BG="$BACKGROUNDS/background.mp4"
+    if $PYTHON "$DAILY_DIR/download_background.py" --output "$LOCAL_BG"; then
+        BACKGROUND_VIDEO="$LOCAL_BG"
+        echo ""
+    else
+        echo "⚠️  Pexels download failed — falling back to existing background video"
+        # Fall through to rotation logic below
+    fi
 fi
 
 # Always start fresh — stale files in WORK_DIR cause silent audio bugs
@@ -76,7 +105,7 @@ import json, os, glob
 
 state_file = "$STATE_FILE"
 bg_dir = "$BACKGROUNDS"
-lang = "$LANG"
+lang = "$VOR_LANG"
 
 # English voices
 en_voices = [
@@ -143,7 +172,7 @@ echo ""
 # ── Step 0: Verify meditation text exists ────────────────────
 if [ ! -f "$MEDITATION_TEXT" ]; then
     echo "❌ Meditation text not found: $MEDITATION_TEXT"
-    if [ "$LANG" = "es" ]; then
+    if [ "$VOR_LANG" = "es" ]; then
         echo "   Run: python3 translate_meditation.py --date $MMDD"
     else
         echo "   Run: python3 daily_poster.py --test $MMDD"
@@ -301,7 +330,7 @@ def draw_centered(draw, text, font, y, color=(255,255,255)):
     x = (W - (bb[2]-bb[0])) // 2
     draw.text((x, y), text, font=font, fill=color)
 
-lang = "$LANG"
+lang = "$VOR_LANG"
 
 if lang == "es":
     cta_line1 = "Para saber más sobre SAA, visita:"
@@ -339,7 +368,7 @@ combined.save("$WORK_DIR/endcard-frame.png")
 print("  ✅ End card frame generated")
 PYEOF
 
-if [ "$LANG" = "es" ]; then
+if [ "$VOR_LANG" = "es" ]; then
     ENDCARD_NARRATION_FILE="$TEMPLATES/endcard-narration-es.txt"
     if [ ! -f "$ENDCARD_NARRATION_FILE" ]; then
         ENDCARD_NARRATION_FILE="$ENDCARD_NARRATION"

@@ -3,21 +3,20 @@
 # GitHub Actions downloads these at build time via Pexels API
 # To add a video: find on pexels.com, get the numeric ID from the URL, add a line here
 
-14414004 | nature landscape
-14853298 | nature landscape
-11977313 | nature landscape
 6527132  | nature landscape
 13033528 | nature landscape
-14465643 | nature landscape
 856882   | nature landscape
 4249607  | nature landscape
-3866539  | nature landscape
 5263093  | nature landscape
 30770305 | nature landscape
 8241243  | nature landscape
 1171471  | nature landscape
-
-# Personal videos — upload to Pexels and replace PENDING with your ID
-PENDING  | IMG_0521 — personal video
-PENDING  | IMG_0524 — personal video
-PENDING  | IMG_0505 — personal video
+2539545  | nature landscape
+1841455  | nature landscape
+3059561  | nature landscape
+32705633 | nature landscape
+1840201  | nature landscape
+5605753  | nature landscape
+6289176  | nature landscape
+4982420  | nature landscape
+4702425  | nature landscape
