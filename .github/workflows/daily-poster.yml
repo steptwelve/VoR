@@ -271,7 +271,7 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git pull --rebase
-          git add meditations/*.txt meditations/*.posted output/*.png
+          git add meditations/*.txt meditations/*.posted
           [ -f .vor-state.json ] && git add .vor-state.json || echo "No .vor-state.json to commit (video disabled)"
           if git diff --staged --quiet; then
             echo "No new files to commit"
