@@ -2,7 +2,14 @@ name: Daily Meditation Poster
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VoR Daily Meditation — GitHub Actions Workflow
-# Version: 2026-03-11.05
+# Version: 2026-03-15.06
+#
+# Changes in .06 (2026-03-15):
+# - Removed .vor-state.json from .gitignore so rotation state persists
+#   across GitHub Actions runner instances.
+# - Changed git add .vor-state.json to git add -f .vor-state.json in the
+#   commit step as belt-and-suspenders (prevents gitignore warnings that
+#   were causing the commit step to silently skip .posted files).
 #
 # Changes in .05 (2026-03-11):
 # - Added meditations/*.posted to the commit step git add command.
@@ -262,7 +269,8 @@ jobs:
       # .posted files must be committed so the runner sees them on subsequent
       # same-day runs and the duplicate guard works correctly.
       #
-      # .vor-state.json only exists when video ran — checked conditionally.
+      # .vor-state.json tracks voice/video rotation and must persist across
+      # runner instances — it is NOT in .gitignore (removed 2026-03-15).
       #
       - name: Commit and push new files
         id: commit
@@ -272,7 +280,7 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git pull --rebase
           git add meditations/*.txt meditations/*.posted
-          [ -f .vor-state.json ] && git add .vor-state.json || echo "No .vor-state.json to commit (video disabled)"
+          [ -f .vor-state.json ] && git add -f .vor-state.json && echo "Added .vor-state.json" || echo "No .vor-state.json to commit (video disabled)"
           if git diff --staged --quiet; then
             echo "No new files to commit"
           else

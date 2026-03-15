@@ -36,8 +36,8 @@ output/*.jpg
 backgrounds/*.mp4
 backgrounds/*.mov
 
-# Rotation state — managed at runtime, not in git
-.vor-state.json
+# .vor-state.json is committed to the repo so rotation state persists
+# across GitHub Actions runner instances. Do NOT add it here.
 
 # Test output files (optional - remove if you want to track these)
 output/*-a.png
