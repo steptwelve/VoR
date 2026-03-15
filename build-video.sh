@@ -40,7 +40,9 @@ fi
 echo ""
 
 # ── Paths ─────────────────────────────────────────────────────
-DAILY_DIR="$HOME/Documents/GitHub/Daily"
+# Use SCRIPT_DIR so this works both locally and on GitHub Actions runners
+# (where $HOME is /home/runner, not ~/Documents/GitHub/Daily)
+DAILY_DIR="$SCRIPT_DIR"
 TEMPLATES="$DAILY_DIR/templates"
 BACKGROUNDS="$DAILY_DIR/backgrounds"
 MEDITATIONS="$DAILY_DIR/meditations"
