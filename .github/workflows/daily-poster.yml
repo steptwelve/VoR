@@ -161,7 +161,7 @@ jobs:
         if: vars.ENABLE_VIDEO == 'true' && steps.background.outcome == 'success'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y ffmpeg fonts-liberation
           pip install edge-tts pillow
 
       # ── Step 4: Build and upload English video to YouTube ────────────────────
