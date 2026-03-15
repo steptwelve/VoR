@@ -2,7 +2,13 @@ name: Daily Meditation Poster
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VoR Daily Meditation — GitHub Actions Workflow
-# Version: 2026-03-15.06
+# Version: 2026-03-15.07
+#
+# Changes in .07 (2026-03-15):
+# - Added chmod +x build-video.sh before running it. Filesystem tool writes
+#   strip executable bits, so the script loses +x on each commit.
+# - Added git stash before git pull --rebase in commit step to handle
+#   unstaged changes (e.g. .vor-state.json written mid-run) that blocked rebase.
 #
 # Changes in .06 (2026-03-15):
 # - Removed .vor-state.json from .gitignore so rotation state persists
@@ -13,10 +19,6 @@ name: Daily Meditation Poster
 #
 # Changes in .05 (2026-03-11):
 # - Added meditations/*.posted to the commit step git add command.
-#   The .posted flag files written by daily_poster.py (duplicate post guard)
-#   must be committed to the repo so subsequent runs on the same day see them
-#   and skip posting. Without this they only exist in the runner's workspace
-#   and are discarded when the runner exits.
 #
 # Changes in .04 (2026-03-11):
 # - Fixed commit step: replaced 'git add --ignore-missing' with shell
@@ -93,18 +95,8 @@ jobs:
 
       # ── Step 1: Scrape meditation text + post to Bluesky and X ───────────────
       #
-      # This is the foundation step. If the SAA website scrape fails, there is
-      # nothing to post or build, so the entire job stops here.
-      #
-      # daily_poster.py exits non-zero in two cases:
-      #   1. Scrape fails (RuntimeError from saa-connect.org)
-      #   2. BOTH Bluesky and X posts fail (total social failure)
-      # A single-platform failure logs a warning but does not exit non-zero.
-      #
-      # daily_poster.py also checks for meditations/MM-DD.posted before posting.
-      # If that file exists, it means today's post already went out and the
-      # script exits 0 cleanly without posting — preventing duplicates on
-      # manual re-runs.
+      # daily_poster.py checks for meditations/MM-DD.posted before posting.
+      # If found, exits 0 cleanly — prevents duplicates on manual re-runs.
       #
       - name: Scrape meditation and post to Bluesky + X
         id: social
@@ -118,8 +110,6 @@ jobs:
         run: |
           python daily_poster.py
 
-      # If Step 1 fails, notify via Pushover at HIGH priority and stop.
-      # Nothing downstream is meaningful without today's meditation text.
       - name: Notify — Step 1 failure (scrape or total social post failure)
         if: failure() && steps.social.outcome == 'failure'
         run: |
@@ -132,13 +122,6 @@ jobs:
             https://api.pushover.net/1/messages.json
 
       # ── Step 2: Download background video from Pexels ────────────────────────
-      #
-      # Gated by vars.ENABLE_VIDEO. Skipped entirely if video is disabled.
-      #
-      # download_background.py writes /tmp/pexels_warning.txt if it had to skip
-      # a 404 video and fall back to the next one in rotation. This file is
-      # checked after the download to send a quiet Pushover warning.
-      #
       - name: Download background video from Pexels
         id: background
         if: vars.ENABLE_VIDEO == 'true'
@@ -187,6 +170,7 @@ jobs:
         if: vars.ENABLE_VIDEO == 'true' && steps.background.outcome == 'success'
         continue-on-error: true
         run: |
+          chmod +x build-video.sh
           MMDD=$(date +'%m-%d')
           YEAR=$(date +'%Y')
           BACKGROUND_VIDEO=/tmp/background.mp4 ./build-video.sh $MMDD $YEAR
@@ -231,9 +215,10 @@ jobs:
         if: vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SPANISH == 'true' && steps.translate_es.outcome == 'success'
         continue-on-error: true
         run: |
+          chmod +x build-video.sh
           MMDD=$(date +'%m-%d')
           YEAR=$(date +'%Y')
-          LANG=es BACKGROUND_VIDEO=/tmp/background.mp4 ./build-video.sh $MMDD $YEAR
+          VOR_LANG=es BACKGROUND_VIDEO=/tmp/background.mp4 ./build-video.sh $MMDD $YEAR
 
       - name: Upload Spanish video to YouTube
         id: upload_es
@@ -243,7 +228,7 @@ jobs:
           YT_TOKEN_JSON: ${{ secrets.YT_TOKEN_JSON }}
           YT_TOKEN_JSON_ES: ${{ secrets.YT_TOKEN_JSON_ES }}
         run: |
-          LANG=es python upload_youtube.py
+          VOR_LANG=es python upload_youtube.py
 
       - name: Notify — Spanish video failure
         if: |
@@ -263,14 +248,8 @@ jobs:
 
       # ── Step 6: Commit new files to repo ─────────────────────────────────────
       #
-      # Always runs via if: always(). Commits meditation text, thumbnail images,
-      # .posted flag files (duplicate guard), and .vor-state.json (when present).
-      #
-      # .posted files must be committed so the runner sees them on subsequent
-      # same-day runs and the duplicate guard works correctly.
-      #
-      # .vor-state.json tracks voice/video rotation and must persist across
-      # runner instances — it is NOT in .gitignore (removed 2026-03-15).
+      # Always runs via if: always(). Commits meditation text, .posted flag
+      # files (duplicate guard), and .vor-state.json (voice/video rotation).
       #
       - name: Commit and push new files
         id: commit
@@ -278,7 +257,9 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
+          git stash || true
           git pull --rebase
+          git stash pop || true
           git add meditations/*.txt meditations/*.posted
           [ -f .vor-state.json ] && git add -f .vor-state.json && echo "Added .vor-state.json" || echo "No .vor-state.json to commit (video disabled)"
           if git diff --staged --quiet; then
