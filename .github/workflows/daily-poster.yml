@@ -281,3 +281,21 @@ jobs:
             --form-string "message=Git commit/push failed on $(date +'%m-%d'). Meditation files may not be saved to repo." \
             --form-string "priority=0" \
             https://api.pushover.net/1/messages.json
+
+      # ── Step 7: Success notification ─────────────────────────────────────────
+      #
+      # Fires only when the commit step succeeded (meaning the run completed
+      # without a fatal error). Uses priority -1 (quiet — shows in app, no
+      # sound or vibration) so it's visible but not intrusive. If you want
+      # audible confirmation, change priority to 0.
+      #
+      - name: Notify — success
+        if: always() && steps.commit.outcome == 'success'
+        run: |
+          curl -s \
+            --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
+            --form-string "user=${{ secrets.PUSHOVER_USER_KEY }}" \
+            --form-string "title=VoR ✓ Daily run complete" \
+            --form-string "message=Meditation posted $(date +'%m-%d'). Social posts and video done." \
+            --form-string "priority=-1" \
+            https://api.pushover.net/1/messages.json
