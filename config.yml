@@ -31,14 +31,14 @@ spanish:
   # YouTube destination — choose ONE of:
   #   same_channel: true  → posts to same channel as English, different playlist
   #   same_channel: false → posts to a separate Spanish-language channel
-  same_channel: false
+  same_channel: true
 
   # If same_channel: true — playlist to add Spanish videos to
-  youtube_playlist_id:   # e.g. PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  youtube_playlist_id: PL8OsToLnGRr9Ll4Sa-gog1q4_Tucx34KP
 
   # If same_channel: false — separate Spanish channel credentials
   # Store the token as YT_TOKEN_JSON_ES in GitHub Secrets
-  youtube_channel_id:    # e.g. UCxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  youtube_channel_id:    # not used — same_channel: true
 
   # Translation settings
   translation:
