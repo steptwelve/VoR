@@ -4,6 +4,12 @@ name: Daily Meditation Poster
 # VoR Daily Meditation — GitHub Actions Workflow
 # Version: 2026-03-15.07
 #
+# Changes in .08 (2026-03-22):
+# - Fixed second rebase failure in commit step. build-video.sh gets chmod +x
+#   during the run, leaving it as an unstaged change that blocks the post-commit
+#   rebase. Fix: restore build-video.sh to its committed state (discarding the
+#   mode-only change) before the rebase+push block.
+#
 # Changes in .07 (2026-03-15):
 # - Added chmod +x build-video.sh before running it. Filesystem tool writes
 #   strip executable bits, so the script loses +x on each commit.
@@ -267,6 +273,7 @@ jobs:
           else
             git commit -m "Daily meditation $(date +'%m-%d')"
             git fetch origin main
+            git checkout -- . || true
             git rebase origin/main || git rebase --skip
             git push origin main
           fi
