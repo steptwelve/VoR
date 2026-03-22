@@ -153,8 +153,9 @@ next_video_idx = (last_video_idx + 1) % len(videos) if videos else 0
 voice = voices[next_voice_idx]
 video = videos[next_video_idx] if videos else ""
 
-# Save state (voice only — video index is owned by download_background.py)
+# Save state — preserve last_video_idx (owned by download_background.py)
 state['last_voice_idx'] = next_voice_idx
+# Do NOT overwrite last_video_idx — it was already advanced by download_background.py
 open(state_file, 'w').write(json.dumps(state, indent=2))
 
 print(voice, video)

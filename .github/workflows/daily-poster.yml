@@ -4,6 +4,13 @@ name: Daily Meditation Poster
 # VoR Daily Meditation — GitHub Actions Workflow
 # Version: 2026-03-15.07
 #
+# Changes in .09 (2026-03-22):
+# - Fixed last_video_idx never advancing. git stash pop was silently failing
+#   on conflict with .vor-state.json (stash pop || true), leaving the remote
+#   stale version on disk. Voice advanced (last_voice_idx) but video index
+#   stayed at 0 every run. Fix: copy .vor-state.json to /tmp before git ops,
+#   restore it after pull --rebase, bypassing stash entirely for state files.
+#
 # Changes in .08 (2026-03-22):
 # - Fixed second rebase failure in commit step. build-video.sh gets chmod +x
 #   during the run, leaving it as an unstaged change that blocks the post-commit
@@ -263,9 +270,28 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git stash || true
+
+          # Save the run's .vor-state.json to a temp location before any git ops.
+          # We do NOT use git stash for state files because stash pop can silently
+          # fail on conflict (stash pop || true), leaving the remote (stale) version
+          # on disk and causing last_video_idx to never advance.
+          if [ -f .vor-state.json ]; then
+            cp .vor-state.json /tmp/vor-state-run.json
+            echo "Saved run state: $(cat /tmp/vor-state-run.json)"
+          fi
+
+          # Clean working tree so rebase has nothing to complain about,
+          # then pull remote.
+          git checkout -- . || true
           git pull --rebase
-          git stash pop || true
+
+          # Restore the run's state on top of whatever the remote had.
+          # This preserves last_video_idx and last_voice_idx from this run.
+          if [ -f /tmp/vor-state-run.json ]; then
+            cp /tmp/vor-state-run.json .vor-state.json
+            echo "Restored run state"
+          fi
+
           git add meditations/*.txt meditations/*.posted
           [ -f .vor-state.json ] && git add -f .vor-state.json && echo "Added .vor-state.json" || echo "No .vor-state.json to commit (video disabled)"
           if git diff --staged --quiet; then
