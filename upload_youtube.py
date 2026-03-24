@@ -19,7 +19,9 @@ from datetime import datetime
 # ── Date / Language args ──────────────────────────────────────
 MMDD   = sys.argv[1] if len(sys.argv) > 1 else datetime.now().strftime("%m-%d")
 YEAR   = sys.argv[2] if len(sys.argv) > 2 else str(datetime.now().year)
-LANG   = sys.argv[3] if len(sys.argv) > 3 else os.environ.get("LANG_VOR", "en")
+# VOR_LANG env var is the canonical way to set language (matches build-video.sh).
+# sys.argv[3] is supported for manual invocation.
+LANG   = sys.argv[3] if len(sys.argv) > 3 else os.environ.get("VOR_LANG", "en")
 
 DAILY_DIR  = Path(__file__).parent
 OUTPUT_DIR = DAILY_DIR / "output"
