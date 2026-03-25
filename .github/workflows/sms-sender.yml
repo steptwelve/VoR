@@ -1,18 +1,21 @@
 # sms-sender.yml
-# Version: 1.1
-# Date: 2024-12-10
-# Changes: Added SMS_ENABLED secret check to allow enabling/disabling SMS sends without modifying workflow
-# Previous version: 1.0 (original version without SMS toggle capability)
+# Version: 1.2
+# Date: 2026-03-25
+# Status: DEPRECATED — SMS distribution via Twilio is no longer active.
+#         Code retained for reference. To be replaced by Alan-based SMS when resurrected.
+#         Schedule removed — workflow can only be triggered manually if needed.
+#
+# Previous version: 1.1 (Added SMS_ENABLED secret check)
 
 name: Daily SMS Sender
 
 on:
-  schedule:
-    # Runs at 8 AM Pacific (16:00 UTC in winter, 15:00 UTC in summer DST)
-    # Using 16:00 UTC for Pacific Standard Time
-    - cron: '0 16 * * *'
-  
-  # Allows manual trigger from GitHub Actions tab
+  # Schedule removed — this workflow is deprecated.
+  # Uncomment below to re-enable when Alan-based SMS is ready:
+  # schedule:
+  #   - cron: '0 16 * * *'
+
+  # Manual trigger retained for testing only
   workflow_dispatch:
 
 jobs:
