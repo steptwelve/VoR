@@ -2,7 +2,22 @@ name: Daily Meditation Poster
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VoR Daily Meditation — GitHub Actions Workflow
-# Version: 2026-03-23.11
+# Version: 2026-05-18.12
+#
+# Changes in .12 (2026-05-18):
+# - Fixed success notification firing even when social posting (Bluesky/X)
+#   failed. steps.social was never checked in the success condition, so a
+#   Bluesky 403 (or any social step failure) would still produce a false
+#   "Daily run complete" Pushover. Added steps.social.conclusion != 'failure'
+#   to the success guard.
+# - Fixed social failure notification: changed condition from
+#   failure() && steps.social.outcome == 'failure' to
+#   always() && steps.social.conclusion == 'failure' so it fires reliably
+#   regardless of job failure state.
+# - Lowered social failure notification priority from 1 (high/wake) to
+#   0 (normal) — consistent with all other failure notifications.
+# - Updated PUSHOVER PRIORITY LEVELS comment: priority 1 removed (no longer
+#   used anywhere in the workflow).
 #
 # Changes in .11 (2026-03-23):
 # - Fixed failure notifications never firing for continue-on-error steps.
@@ -87,8 +102,7 @@ name: Daily Meditation Poster
 #
 # PUSHOVER PRIORITY LEVELS USED:
 #   -1  Quiet          — Daily success notification
-#    0  Normal         — Step failure needing investigation
-#    1  High           — Total social post failure (nothing posted today)
+#    0  Normal         — Any step failure needing investigation
 #
 # NOTE ON continue-on-error AND NOTIFICATIONS:
 #   Steps with continue-on-error: true always show outcome='success' even
@@ -145,15 +159,15 @@ jobs:
         run: |
           python daily_poster.py
 
-      - name: Notify — Step 1 failure (scrape or total social post failure)
-        if: failure() && steps.social.outcome == 'failure'
+      - name: Notify — Step 1 failure (scrape or social post failure)
+        if: always() && steps.social.conclusion == 'failure'
         run: |
           curl -s \
             --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
             --form-string "user=${{ secrets.PUSHOVER_USER_KEY }}" \
             --form-string "title=VoR FAILURE: Social post" \
             --form-string "message=Daily meditation scrape or social posting failed on $(date +'%m-%d'). Check GitHub Actions logs." \
-            --form-string "priority=1" \
+            --form-string "priority=0" \
             https://api.pushover.net/1/messages.json
 
       # ── Step 2: Download background video from Pexels ────────────────────────
@@ -362,14 +376,15 @@ jobs:
 
       # ── Step 7: Success notification ─────────────────────────────────────────
       #
-      # Fires only when the commit step succeeded AND no video/Spanish failures
-      # occurred. If any continue-on-error step failed, we already sent a
-      # failure Pushover above — so the success notification is suppressed
+      # Fires only when the social step and commit step both succeeded AND no
+      # video/Spanish failures occurred. If any step failed, we already sent
+      # a failure Pushover above — so the success notification is suppressed
       # to avoid a confusing "all good" ping after a failure alert.
       #
       - name: Notify — success
         if: |
           always() &&
+          steps.social.conclusion != 'failure' &&
           steps.commit.outcome == 'success' &&
           steps.background.conclusion != 'failure' &&
           steps.build_en.conclusion != 'failure' &&
