@@ -1,6 +1,21 @@
 """
 daily_poster.py
 
+Version: 2026-06-03.12
+Generated: 2026-06-03
+
+Changes in the .12 version:
+- Fixed Bluesky facet byte offset bug: curly quotes (\u201c, \u201d) and other
+  multi-byte UTF-8 characters in the post text caused all facet byte offsets
+  after them to be shifted, resulting in hashtags and URLs being partially
+  highlighted (e.g., #recoveryposse showing 'o' in black, URL suffix cut off).
+  Fix: encode text to UTF-8 bytes and search for encoded hashtag/URL patterns
+  to get correct byte offsets.
+- Added YouTube channel URL (https://youtube.com/@StepTwelveSAA) to Bluesky
+  posts, inserted between the quote and the hashtags, as a clickable link
+  facet. Also added to build_bsky_text() suffix so character count is correct.
+- BSKY_YT_URL constant added near other URL constants.
+
 Version: 2026-03-11.11
 Generated: 2026-03-11
 
@@ -164,7 +179,7 @@ DATE_TO_BODY_SPACING = 24
 
 QUOTE_CHARS = ['"', '\u201c', '\u201d', '\u2018', '\u2019']
 
-# Hashtags and URL (for Bluesky + X)
+# Hashtags and URLs (for Bluesky + X)
 BSKY_HASHTAGS = [
     "#addiction",
     "#saa",
@@ -174,9 +189,10 @@ BSKY_HASHTAGS = [
     "#sobriety",
 ]
 BSKY_URL = "https://bit.ly/step12-b"
+BSKY_YT_URL = "https://youtube.com/@StepTwelveSAA"
 
-# X/Twitter uses same hashtags but different URL
-X_HASHTAGS = BSKY_HASHTAGS  # Same hashtags for both platforms
+# X/Twitter uses same hashtags but different URL (no YouTube link — character budget)
+X_HASHTAGS = BSKY_HASHTAGS
 X_URL = "http://bit.ly/step12-t"
 
 # -----------------------
@@ -557,10 +573,11 @@ def build_bsky_text(full_text: str) -> str:
     """
     Build Bluesky text:
       - use the opening quote (second paragraph after page_title)
-      - append hashtags + URL
+      - append YouTube channel URL on its own line
+      - append hashtags + OCISAA URL
       - if total length > 300, truncate quote word-by-word from end
       - add ellipsis (...) to show truncation
-      - always preserve all hashtags and URL
+      - always preserve YouTube URL, hashtags, and OCISAA URL
     """
     parts = [p.strip() for p in full_text.split("\n\n") if p.strip()]
     if len(parts) > 1:
@@ -570,20 +587,18 @@ def build_bsky_text(full_text: str) -> str:
     else:
         quote = ""
     quote = " ".join(quote.split())
+
+    yt_line = f"\n🎥 {BSKY_YT_URL}"
     hashtags_str = " ".join(BSKY_HASHTAGS)
-    url = BSKY_URL
-    suffix_parts = []
-    if hashtags_str:
-        suffix_parts.append(hashtags_str)
-    if url:
-        suffix_parts.append(url)
-    suffix = " ".join(suffix_parts)
-    reserved = len(suffix) + 1 if suffix else 0
+    suffix = f"{yt_line}\n{hashtags_str} {BSKY_URL}"
+
+    reserved = len(suffix) + 1  # +1 for space between quote and suffix
     max_quote_length = 300 - reserved
+
     if len(quote) <= max_quote_length:
-        if suffix:
-            return f"{quote} {suffix}"
-        return quote
+        return f"{quote}{suffix}"
+
+    # Truncate quote word-by-word
     words = quote.split()
     truncated_words = []
     ellipsis = "..."
@@ -597,9 +612,7 @@ def build_bsky_text(full_text: str) -> str:
         else:
             break
     truncated_quote = " ".join(truncated_words) + ellipsis if truncated_words else ellipsis
-    if suffix:
-        return f"{truncated_quote} {suffix}"
-    return truncated_quote
+    return f"{truncated_quote}{suffix}"
 
 
 def build_x_text(full_text: str) -> str:
@@ -666,20 +679,46 @@ def post_to_bluesky(text: str, image_path: Optional[Path] = None):
         client = BskyClient()
         logger.info("Logging into Bluesky as %s", BSKY_USERNAME)
         client.login(BSKY_USERNAME, BSKY_APP_PASSWORD)
-        facets = []
+
+        # ── Facet construction using UTF-8 BYTE offsets ───────────────────────
+        # AT Protocol requires byte offsets into the UTF-8 encoded text,
+        # NOT Python character positions. Multi-byte characters (curly quotes,
+        # em-dashes, etc.) cause character positions to diverge from byte
+        # positions, resulting in partially-highlighted hashtags/URLs.
+        # Fix: encode to bytes, search for encoded patterns, use byte positions.
         import re
-        hashtag_pattern = r'#\w+'
-        for match in re.finditer(hashtag_pattern, text):
+        text_bytes = text.encode("utf-8")
+        facets = []
+
+        # Hashtags: find #word patterns in the byte string
+        for match in re.finditer(rb'#\w+', text_bytes):
+            tag_bytes = match.group()
+            tag_str = tag_bytes.decode("utf-8")[1:]  # strip leading #
             facets.append({
-                "index": {"byteStart": match.start(), "byteEnd": match.end()},
-                "features": [{"$type": "app.bsky.richtext.facet#tag", "tag": match.group()[1:]}]
+                "index": {
+                    "byteStart": match.start(),
+                    "byteEnd": match.end(),
+                },
+                "features": [{
+                    "$type": "app.bsky.richtext.facet#tag",
+                    "tag": tag_str,
+                }]
             })
-        url_pattern = r'https?://[^\s]+'
-        for match in re.finditer(url_pattern, text):
+
+        # URLs: find http(s):// patterns in the byte string
+        for match in re.finditer(rb'https?://[^\s]+', text_bytes):
+            uri = match.group().decode("utf-8")
             facets.append({
-                "index": {"byteStart": match.start(), "byteEnd": match.end()},
-                "features": [{"$type": "app.bsky.richtext.facet#link", "uri": match.group()}]
+                "index": {
+                    "byteStart": match.start(),
+                    "byteEnd": match.end(),
+                },
+                "features": [{
+                    "$type": "app.bsky.richtext.facet#link",
+                    "uri": uri,
+                }]
             })
+
         embed = None
         if image_path and image_path.exists():
             with open(image_path, "rb") as f:
