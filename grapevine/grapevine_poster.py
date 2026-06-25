@@ -6,9 +6,9 @@ grapevine_poster.py
 Purpose:
     Fetches the daily AA Grapevine Daily Quote from Gmail and posts it to
     Bluesky (@ocisaa.org) and optionally X (@ocisaa) for the SAA recovery
-    community.
+    community. After successful posting, moves the email to Trash.
 
-Version:    1.2
+Version:    1.3
 Created:    2026-06-23
 Author:     Jackson Shaw (steptwelve@icloud.com) with Claude (Anthropic)
 
@@ -17,8 +17,8 @@ How it runs:
     0 9 * * * /usr/bin/python3 /home/jackson/grapevine/grapevine_poster.py
 
 Usage:
-    python3 grapevine_poster.py           # full run — fetch, parse, post
-    python3 grapevine_poster.py --dry-run # fetch and parse only, no posting
+    python3 grapevine_poster.py           # full run — fetch, parse, post, trash
+    python3 grapevine_poster.py --dry-run # fetch and parse only, no posting or trashing
 
 Secrets (stored in /home/jackson/.secrets/):
     gmail_token.json       — Gmail OAuth token (jackson.shaw@gmail.com)
@@ -47,6 +47,11 @@ Email retry policy:
     If the Grapevine email is not found, retries every 30 minutes for up
     to 3 hours. If still not found by noon ET, errors out with Pushover.
 
+Email cleanup policy:
+    After successful posting to at least one platform, the email is moved
+    to Trash. Gmail auto-purges Trash after 30 days.
+    If all platforms fail, the email is NOT trashed.
+
 Platform toggles:
     POST_TO_X       — X/Twitter posting (disabled: API requires paid tier)
     POST_TO_BLUESKY — Bluesky posting (enabled)
@@ -62,6 +67,7 @@ Revision history:
     1.2  2026-06-24  Added X toggle (POST_TO_X). Retry loop for missing email
                      (every 30 min, up to 3 hours). Improved Pushover notification
                      shows per-platform success/failure status.
+    1.3  2026-06-25  Auto-trash email after successful posting to at least one platform.
 ================================================================================
 """
 
@@ -100,7 +106,10 @@ GMAIL_CREDS   = SECRETS_DIR / "gmail_credentials.json"
 PUSHOVER_JSON = SECRETS_DIR / "pushover.json"
 ENV_FILE      = SECRETS_DIR / "grapevine.env"
 
-GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+GMAIL_SCOPES = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.modify",
+]
 
 # Character limits
 X_LIMIT   = 280
@@ -168,6 +177,14 @@ def extract_text_from_email(msg):
                 return result
         return ""
     return get_body(payload)
+
+def trash_email(service, msg_id):
+    """Move the email to Trash after successful posting."""
+    try:
+        service.users().messages().trash(userId="me", id=msg_id).execute()
+        print("🗑️  Email moved to Trash")
+    except Exception as e:
+        print(f"Warning: could not trash email: {e}")
 
 def parse_quote(text):
     """
@@ -249,6 +266,7 @@ def main():
     try:
         service = get_gmail_service()
         msg = fetch_with_retry(service)
+        msg_id = msg["id"]
         text = extract_text_from_email(msg)
         quote, attribution = parse_quote(text)
 
@@ -267,7 +285,7 @@ def main():
         print(bsk_post)
 
         if DRY_RUN:
-            print("\n[DRY RUN] Skipping posting.")
+            print("\n[DRY RUN] Skipping posting and trashing.")
             return
 
         # Post to each platform independently
@@ -279,9 +297,9 @@ def main():
                 post_x(x_post, env)
                 results.append("✅ X: posted")
             except Exception as e:
-                msg = f"❌ X: {e}"
-                print(msg)
-                errors.append(msg)
+                err = f"❌ X: {e}"
+                print(err)
+                errors.append(err)
         else:
             print("⏭️  X: skipped (POST_TO_X=False)")
 
@@ -290,13 +308,19 @@ def main():
                 post_bluesky(bsk_post, env)
                 results.append("✅ Bluesky: posted")
             except Exception as e:
-                msg = f"❌ Bluesky: {e}"
-                print(msg)
-                errors.append(msg)
+                err = f"❌ Bluesky: {e}"
+                print(err)
+                errors.append(err)
         else:
             print("⏭️  Bluesky: skipped (POST_TO_BLUESKY=False)")
 
-        # Build notification
+        # Trash email if at least one platform succeeded
+        if results:
+            trash_email(service, msg_id)
+        else:
+            print("⚠️  No platforms succeeded — email NOT trashed")
+
+        # Build and send notification
         status_lines = results + errors
         status = "\n".join(status_lines)
         has_errors = len(errors) > 0
