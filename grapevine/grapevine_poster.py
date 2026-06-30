@@ -24,7 +24,7 @@ Secrets (stored in /home/jackson/.secrets/):
     gmail_token.json       — Gmail OAuth token (jackson.shaw@gmail.com)
     gmail_credentials.json — Gmail OAuth client credentials (Google Cloud / SARP project)
     grapevine.env          — X and Bluesky credentials
-    pushover.json          — Pushover notification credentials
+    pushover_grapevine.json          — Pushover notification credentials
 
 Notifications:
     Pushover silent (-1) on success, normal (0) on any failure.
@@ -103,7 +103,7 @@ DRY_RUN = "--dry-run" in sys.argv
 SECRETS_DIR   = Path("/home/jackson/.secrets")
 GMAIL_TOKEN   = SECRETS_DIR / "gmail_token.json"
 GMAIL_CREDS   = SECRETS_DIR / "gmail_credentials.json"
-PUSHOVER_JSON = SECRETS_DIR / "pushover.json"
+PUSHOVER_JSON = SECRETS_DIR / "pushover_grapevine.json"
 ENV_FILE      = SECRETS_DIR / "grapevine.env"
 
 GMAIL_SCOPES = [
