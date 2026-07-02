@@ -6,9 +6,10 @@ grapevine_poster.py
 Purpose:
     Fetches the daily AA Grapevine Daily Quote from Gmail and posts it to
     Bluesky (@ocisaa.org) and optionally X (@ocisaa) for the SAA recovery
-    community. After successful posting, moves the email to Trash.
+    community. After successful posting, moves the email to Trash and writes
+    a guard file so the reboot script knows today's quote was posted.
 
-Version:    1.3
+Version:    1.4
 Created:    2026-06-23
 Author:     Jackson Shaw (steptwelve@icloud.com) with Claude (Anthropic)
 
@@ -16,15 +17,18 @@ How it runs:
     Cron job on lsm (ZimaBlade), daily at 9:00 AM ET:
     0 9 * * * /usr/bin/python3 /home/jackson/grapevine/grapevine_poster.py
 
+    Reboot guard (via grapevine_reboot.sh):
+    @reboot /home/jackson/grapevine/grapevine_reboot.sh
+
 Usage:
     python3 grapevine_poster.py           # full run — fetch, parse, post, trash
     python3 grapevine_poster.py --dry-run # fetch and parse only, no posting or trashing
 
 Secrets (stored in /home/jackson/.secrets/):
-    gmail_token.json       — Gmail OAuth token (jackson.shaw@gmail.com)
-    gmail_credentials.json — Gmail OAuth client credentials (Google Cloud / SARP project)
-    grapevine.env          — X and Bluesky credentials
-    pushover_grapevine.json          — Pushover notification credentials
+    gmail_token.json        — Gmail OAuth token (jackson.shaw@gmail.com)
+    gmail_credentials.json  — Gmail OAuth client credentials (Google Cloud / SARP project)
+    grapevine.env           — X and Bluesky credentials
+    pushover_grapevine.json — Pushover notification credentials (Daily Meditation app)
 
 Notifications:
     Pushover silent (-1) on success, normal (0) on any failure.
@@ -52,6 +56,11 @@ Email cleanup policy:
     to Trash. Gmail auto-purges Trash after 30 days.
     If all platforms fail, the email is NOT trashed.
 
+Guard file policy:
+    After successful posting, writes /home/jackson/grapevine/.posted_YYYY-MM-DD.
+    The reboot script checks for this file to avoid duplicate posts after
+    a power failure or reboot.
+
 Platform toggles:
     POST_TO_X       — X/Twitter posting (disabled: API requires paid tier)
     POST_TO_BLUESKY — Bluesky posting (enabled)
@@ -68,6 +77,9 @@ Revision history:
                      (every 30 min, up to 3 hours). Improved Pushover notification
                      shows per-platform success/failure status.
     1.3  2026-06-25  Auto-trash email after successful posting to at least one platform.
+                     Switch to pushover_grapevine.json (Daily Meditation app token).
+    1.4  2026-07-02  Write guard file (.posted_YYYY-MM-DD) after successful post so
+                     grapevine_reboot.sh can detect missed runs after power failure.
 ================================================================================
 """
 
@@ -105,6 +117,7 @@ GMAIL_TOKEN   = SECRETS_DIR / "gmail_token.json"
 GMAIL_CREDS   = SECRETS_DIR / "gmail_credentials.json"
 PUSHOVER_JSON = SECRETS_DIR / "pushover_grapevine.json"
 ENV_FILE      = SECRETS_DIR / "grapevine.env"
+GRAPEVINE_DIR = Path("/home/jackson/grapevine")
 
 GMAIL_SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
@@ -185,6 +198,15 @@ def trash_email(service, msg_id):
         print("🗑️  Email moved to Trash")
     except Exception as e:
         print(f"Warning: could not trash email: {e}")
+
+def write_guard_file():
+    """Write a guard file so the reboot script knows today's quote was posted."""
+    try:
+        guard = GRAPEVINE_DIR / f".posted_{datetime.date.today().strftime('%Y-%m-%d')}"
+        guard.touch()
+        print(f"🗓️  Guard file written: {guard}")
+    except Exception as e:
+        print(f"Warning: could not write guard file: {e}")
 
 def parse_quote(text):
     """
@@ -314,11 +336,12 @@ def main():
         else:
             print("⏭️  Bluesky: skipped (POST_TO_BLUESKY=False)")
 
-        # Trash email if at least one platform succeeded
+        # Trash email and write guard file if at least one platform succeeded
         if results:
             trash_email(service, msg_id)
+            write_guard_file()
         else:
-            print("⚠️  No platforms succeeded — email NOT trashed")
+            print("⚠️  No platforms succeeded — email NOT trashed, guard file NOT written")
 
         # Build and send notification
         status_lines = results + errors
