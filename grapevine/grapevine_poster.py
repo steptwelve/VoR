@@ -9,7 +9,7 @@ Purpose:
     community. After successful posting, moves the email to Trash and writes
     a guard file so the reboot script knows today's quote was posted.
 
-Version:    1.4
+Version:    1.5
 Created:    2026-06-23
 Author:     Jackson Shaw (steptwelve@icloud.com) with Claude (Anthropic)
 
@@ -40,7 +40,8 @@ Character limit strategy:
     Fallback order:
       1. Full attribution: "Quote" — Location, Date, "Article," Publication
       2. Publication only: "Quote" — Publication
-      3. Trim quote to fit with publication only
+      3. Quote too long — return None, skip posting for that platform,
+         send Pushover warning. Better to miss a day than truncate the quote.
 
 Platform failure policy:
     Each platform (X, Bluesky) is posted independently. A failure on one
@@ -54,7 +55,7 @@ Email retry policy:
 Email cleanup policy:
     After successful posting to at least one platform, the email is moved
     to Trash. Gmail auto-purges Trash after 30 days.
-    If all platforms fail, the email is NOT trashed.
+    If all platforms fail or quote is too long, the email is NOT trashed.
 
 Guard file policy:
     After successful posting, writes /home/jackson/grapevine/.posted_YYYY-MM-DD.
@@ -80,6 +81,9 @@ Revision history:
                      Switch to pushover_grapevine.json (Daily Meditation app token).
     1.4  2026-07-02  Write guard file (.posted_YYYY-MM-DD) after successful post so
                      grapevine_reboot.sh can detect missed runs after power failure.
+    1.5  2026-07-03  No quote truncation. If quote is too long for a platform after
+                     fallback attribution, skip that platform and send Pushover warning.
+                     Better to miss a day than post a truncated quote.
 ================================================================================
 """
 
@@ -225,19 +229,30 @@ def parse_quote(text):
 # ── Post formatting ───────────────────────────────────────────────────────────
 
 def build_post(quote, attribution, limit):
-    """Build post text with character-limit-aware fallback."""
+    """
+    Build post text with character-limit-aware fallback.
+    Returns None if the quote is too long even with minimal attribution.
+    Never truncates the quote itself.
+
+    Fallback order:
+      1. Full attribution
+      2. Publication name only (last comma-separated segment)
+      3. None — quote is too long, skip this platform
+    """
+    # Try full attribution
     full = f'"{quote}"\n\u2014 {attribution}{HASHTAGS}'
     if len(full) <= limit:
         return full
+
+    # Try publication name only
     parts = [p.strip() for p in attribution.split(",")]
     publication = parts[-1] if parts else attribution
     fallback = f'"{quote}"\n\u2014 {publication}{HASHTAGS}'
     if len(fallback) <= limit:
         return fallback
-    overhead = len(f'"\u2026"\n\u2014 {publication}{HASHTAGS}')
-    available = limit - overhead
-    trimmed = quote[:available].rsplit(" ", 1)[0] + "\u2026"
-    return f'"{trimmed}"\n\u2014 {publication}{HASHTAGS}'
+
+    # Quote is too long — do not truncate
+    return None
 
 # ── Post to Bluesky ───────────────────────────────────────────────────────────
 
@@ -301,10 +316,10 @@ def main():
         x_post   = build_post(quote, attribution, X_LIMIT)
         bsk_post = build_post(quote, attribution, BSK_LIMIT)
 
-        print(f"\n--- X post ({len(x_post)} chars) ---")
-        print(x_post)
-        print(f"\n--- Bluesky post ({len(bsk_post)} chars) ---")
-        print(bsk_post)
+        print(f"\n--- X post ({len(x_post) if x_post else 'TOO LONG'} chars) ---")
+        print(x_post if x_post else "⚠️  Quote too long for X — skipping")
+        print(f"\n--- Bluesky post ({len(bsk_post) if bsk_post else 'TOO LONG'} chars) ---")
+        print(bsk_post if bsk_post else "⚠️  Quote too long for Bluesky — skipping")
 
         if DRY_RUN:
             print("\n[DRY RUN] Skipping posting and trashing.")
@@ -315,24 +330,34 @@ def main():
         errors  = []
 
         if POST_TO_X:
-            try:
-                post_x(x_post, env)
-                results.append("✅ X: posted")
-            except Exception as e:
-                err = f"❌ X: {e}"
-                print(err)
-                errors.append(err)
+            if x_post is None:
+                msg_too_long = "⚠️  X: quote too long — skipped"
+                print(msg_too_long)
+                errors.append(msg_too_long)
+            else:
+                try:
+                    post_x(x_post, env)
+                    results.append("✅ X: posted")
+                except Exception as e:
+                    err = f"❌ X: {e}"
+                    print(err)
+                    errors.append(err)
         else:
             print("⏭️  X: skipped (POST_TO_X=False)")
 
         if POST_TO_BLUESKY:
-            try:
-                post_bluesky(bsk_post, env)
-                results.append("✅ Bluesky: posted")
-            except Exception as e:
-                err = f"❌ Bluesky: {e}"
-                print(err)
-                errors.append(err)
+            if bsk_post is None:
+                msg_too_long = "⚠️  Bluesky: quote too long — skipped"
+                print(msg_too_long)
+                errors.append(msg_too_long)
+            else:
+                try:
+                    post_bluesky(bsk_post, env)
+                    results.append("✅ Bluesky: posted")
+                except Exception as e:
+                    err = f"❌ Bluesky: {e}"
+                    print(err)
+                    errors.append(err)
         else:
             print("⏭️  Bluesky: skipped (POST_TO_BLUESKY=False)")
 
