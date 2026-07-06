@@ -2,7 +2,17 @@ name: Daily Meditation Poster
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VoR Daily Meditation — GitHub Actions Workflow
-# Version: 2026-07-05.12
+# Version: 2026-07-05.13
+#
+# Changes in .13 (2026-07-05):
+# - Added YT_PLAYLIST_ID_EN as a passthrough repository Variable in the
+#   "Upload English video to YouTube" step. Previously the workflow never
+#   set this env var at all, so upload_youtube.py silently fell back to a
+#   playlist ID hardcoded from the original developer's channel — causing
+#   HttpError 403 playlistItemsNotAccessible for any other channel/account.
+#   Set the YT_PLAYLIST_ID_EN repository Variable to a playlist ID on your
+#   own channel to enable playlist assignment; leave it unset to upload
+#   without adding to any playlist.
 #
 # Changes in .12 (2026-07-05):
 # - CORRECTED a mistake introduced in .11. GitHub Actions semantics are the
@@ -243,6 +253,11 @@ jobs:
         continue-on-error: true
         env:
           YT_TOKEN_JSON: ${{ secrets.YT_TOKEN_JSON }}
+          # Set this repository Variable to a playlist ID on YOUR channel.
+          # Left unset, videos upload fine but skip playlist assignment —
+          # the script's hardcoded fallback ID belongs to a different
+          # channel and will fail with playlistItemsNotAccessible.
+          YT_PLAYLIST_ID_EN: ${{ vars.YT_PLAYLIST_ID_EN }}
         run: |
           python upload_youtube.py
 
