@@ -9,7 +9,7 @@ Purpose:
     community. After successful posting, moves the email to Trash and writes
     a guard file so the reboot script knows today's quote was posted.
 
-Version:    1.5
+Version:    1.6
 Created:    2026-06-23
 Author:     Jackson Shaw (steptwelve@icloud.com) with Claude (Anthropic)
 
@@ -27,7 +27,7 @@ Usage:
 Secrets (stored in /home/jackson/.secrets/):
     gmail_token.json        — Gmail OAuth token (jackson.shaw@gmail.com)
     gmail_credentials.json  — Gmail OAuth client credentials (Google Cloud / SARP project)
-    grapevine.env           — X and Bluesky credentials
+    grapevine.env           — Bluesky credentials + BUFFER_API_KEY (X now posts via Buffer)
     pushover_grapevine.json — Pushover notification credentials (Daily Meditation app)
 
 Notifications:
@@ -63,7 +63,7 @@ Guard file policy:
     a power failure or reboot.
 
 Platform toggles:
-    POST_TO_X       — X/Twitter posting (disabled: API requires paid tier)
+    POST_TO_X       — X/Twitter posting (enabled: now posts via Buffer, not tweepy)
     POST_TO_BLUESKY — Bluesky posting (enabled)
 
 Related projects:
@@ -84,6 +84,12 @@ Revision history:
     1.5  2026-07-03  No quote truncation. If quote is too long for a platform after
                      fallback attribution, skip that platform and send Pushover warning.
                      Better to miss a day than post a truncated quote.
+    1.6  2026-08-05  Replaced post_x() — no longer uses tweepy/X API directly (blocked by
+                     X's paid API tier). Now posts via Buffer's GraphQL API (createPost
+                     mutation, mode: shareNow), same 'ocisaa' channel VoR's daily_poster.py
+                     uses. Re-enabled POST_TO_X (was False). Requires BUFFER_API_KEY in
+                     grapevine.env. No image handling needed here — this script has always
+                     posted text-only on both platforms.
 ================================================================================
 """
 
@@ -104,12 +110,9 @@ from googleapiclient.discovery import build
 # Bluesky
 from atproto import Client as BskyClient
 
-# X / Twitter
-import tweepy
-
 # ── Platform toggles ──────────────────────────────────────────────────────────
 
-POST_TO_X       = False  # X API requires paid tier — set True to re-enable
+POST_TO_X       = True   # Now posts via Buffer instead of tweepy/X API directly
 POST_TO_BLUESKY = True
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -127,6 +130,10 @@ GMAIL_SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.modify",
 ]
+
+# Buffer channel ID for the 'ocisaa' X/Twitter profile (Buffer org: OCISAA).
+# Same channel VoR's daily_poster.py posts to.
+BUFFER_X_CHANNEL_ID = "678063bf4697c1deff60ae6e"
 
 # Character limits
 X_LIMIT   = 280
@@ -262,17 +269,64 @@ def post_bluesky(text, env):
     client.send_post(text)
     print("✅ Bluesky: posted")
 
-# ── Post to X ────────────────────────────────────────────────────────────────
+# ── Post to X (via Buffer) ────────────────────────────────────────────────────
 
 def post_x(text, env):
-    client = tweepy.Client(
-        consumer_key=env["X_API_KEY"],
-        consumer_secret=env["X_API_SECRET"],
-        access_token=env["X_ACCESS_TOKEN"],
-        access_token_secret=env["X_ACCESS_TOKEN_SECRET"]
+    """
+    Post to X/Twitter via Buffer's GraphQL API (createPost mutation),
+    targeting the 'ocisaa' channel. Replaces the old tweepy/X API v2
+    integration, which broke when X restricted free-tier API access.
+    Text-only — this script has never attached images to either platform.
+    """
+    buffer_api_key = env.get("BUFFER_API_KEY")
+    if not buffer_api_key:
+        raise RuntimeError("BUFFER_API_KEY not set in grapevine.env")
+
+    mutation = f"""
+    mutation CreatePost {{
+      createPost(input: {{
+        text: {json.dumps(text)}
+        channelId: {json.dumps(BUFFER_X_CHANNEL_ID)}
+        schedulingType: automatic
+        mode: shareNow
+      }}) {{
+        ... on PostActionSuccess {{
+          post {{
+            id
+            text
+          }}
+        }}
+        ... on MutationError {{
+          message
+        }}
+      }}
+    }}
+    """
+
+    resp = requests.post(
+        "https://api.buffer.com",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {buffer_api_key}",
+        },
+        json={"query": mutation},
+        timeout=30,
     )
-    client.create_tweet(text=text)
-    print("✅ X: posted")
+    resp.raise_for_status()
+    result = resp.json()
+
+    if result.get("errors"):
+        raise RuntimeError(f"Buffer API errors: {result['errors']}")
+
+    create_post = (result.get("data") or {}).get("createPost") or {}
+    if "message" in create_post:
+        raise RuntimeError(f"Buffer post failed: {create_post['message']}")
+
+    post = create_post.get("post")
+    if not post:
+        raise RuntimeError(f"Unexpected Buffer response shape: {result}")
+
+    print(f"✅ X: posted via Buffer ({post.get('id')})")
 
 # ── Pushover notification ─────────────────────────────────────────────────────
 
