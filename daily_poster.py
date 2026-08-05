@@ -1,6 +1,23 @@
 """
 daily_poster.py
 
+Version: 2026-08-05.14
+Generated: 2026-08-05
+
+Changes in the .14 version:
+- Fixed post_to_x() sending X posts to Buffer's queue instead of publishing
+  immediately. Buffer's createPost mutation requires mode: shareNow to send
+  right away — the .13 version incorrectly used mode: addToQueue, which
+  parked the post in Buffer's queue for its next scheduled slot instead of
+  posting it live. Confirmed via first real run (2026-08-05): the mutation
+  succeeded but the post sat queued for hours instead of going out.
+- Added retry logic (3 attempts, short backoff) to upload_to_imgbb(). First
+  real run hit a transient 500 Internal Server Error from imgbb's API —
+  the same PNG uploaded to Bluesky fine seconds earlier, so this wasn't a
+  bad image or bad key, just a one-off server hiccup on imgbb's side that a
+  retry would have absorbed. Falls back to text-only tweet only if all
+  retry attempts fail.
+
 Version: 2026-08-04.13
 Generated: 2026-08-04
 
@@ -143,6 +160,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 import logging
@@ -755,35 +773,49 @@ def post_to_bluesky(text: str, image_path: Optional[Path] = None):
         return None
 
 
-def upload_to_imgbb(image_path: Path) -> Optional[str]:
+def upload_to_imgbb(image_path: Path, max_attempts: int = 3) -> Optional[str]:
     """
-    Upload an image to imgbb.com and return its public URL, or None on
-    failure. Buffer's createPost mutation requires a publicly accessible
-    image URL (it does not accept raw file uploads), so this is the bridge
-    between our locally-generated PNG and Buffer's asset input.
+    Upload an image to imgbb.com and return its public URL, or None if all
+    attempts fail. Buffer's createPost mutation requires a publicly
+    accessible image URL (it does not accept raw file uploads), so this is
+    the bridge between our locally-generated PNG and Buffer's asset input.
+
+    Retries a few times with a short backoff — imgbb's API has been seen to
+    return transient 500s even for a valid image/key, so a single failed
+    attempt shouldn't be enough to drop the image from the post.
     """
     if not IMGBB_API_KEY:
         logger.warning("IMGBB_API_KEY not configured; skipping image upload.")
         return None
-    try:
-        with open(image_path, "rb") as f:
-            resp = requests.post(
-                "https://api.imgbb.com/1/upload",
-                data={"key": IMGBB_API_KEY},
-                files={"image": f},
-                timeout=30,
+
+    last_error: Optional[Exception] = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with open(image_path, "rb") as f:
+                resp = requests.post(
+                    "https://api.imgbb.com/1/upload",
+                    data={"key": IMGBB_API_KEY},
+                    files={"image": f},
+                    timeout=30,
+                )
+            resp.raise_for_status()
+            data = resp.json()
+            url = data.get("data", {}).get("url")
+            if not url:
+                logger.warning("imgbb upload succeeded but no URL in response: %s", data)
+                return None
+            logger.info("Uploaded image to imgbb (attempt %d): %s", attempt, url)
+            return url
+        except Exception as e:
+            last_error = e
+            logger.warning(
+                "imgbb upload attempt %d/%d failed: %s", attempt, max_attempts, e
             )
-        resp.raise_for_status()
-        data = resp.json()
-        url = data.get("data", {}).get("url")
-        if not url:
-            logger.warning("imgbb upload succeeded but no URL in response: %s", data)
-            return None
-        logger.info("Uploaded image to imgbb: %s", url)
-        return url
-    except Exception as e:
-        logger.exception("Failed to upload image to imgbb: %s", e)
-        return None
+            if attempt < max_attempts:
+                time.sleep(2 * attempt)  # 2s, then 4s backoff
+
+    logger.exception("All imgbb upload attempts failed: %s", last_error)
+    return None
 
 
 def post_to_x(text: str, image_path: Optional[Path] = None):
@@ -819,7 +851,7 @@ def post_to_x(text: str, image_path: Optional[Path] = None):
             text: {json.dumps(text)}
             channelId: {json.dumps(BUFFER_X_CHANNEL_ID)}
             schedulingType: automatic
-            mode: addToQueue
+            mode: shareNow
             {assets_fragment}
           }}) {{
             ... on PostActionSuccess {{
