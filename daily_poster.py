@@ -1,6 +1,26 @@
 """
 daily_poster.py
 
+Version: 2026-08-04.13
+Generated: 2026-08-04
+
+Changes in the .13 version:
+- Replaced X/Twitter posting: post_to_x() no longer uses tweepy/X API v2
+  directly. X's paid API tier blocked our free-tier tweepy calls, so posting
+  now goes through Buffer's GraphQL API (createPost mutation) instead,
+  targeting the 'ocisaa' X channel already connected in Buffer.
+- Added upload_to_imgbb() — since Buffer's createPost requires a publicly
+  accessible image URL (no raw file upload support), the daily PNG is
+  uploaded to imgbb.com first to get an instant public URL, which is then
+  passed to Buffer as an image asset. If the imgbb upload fails, post_to_x()
+  falls back to a text-only tweet rather than failing the whole post.
+- Removed tweepy import and X_API_KEY / X_API_SECRET / X_ACCESS_TOKEN /
+  X_ACCESS_TOKEN_SECRET env vars — no longer needed.
+- Added BUFFER_API_KEY, IMGBB_API_KEY env vars and BUFFER_X_CHANNEL_ID
+  constant (Buffer channel ID for the ocisaa X profile).
+- Added `import json` (needed to safely encode strings into GraphQL query
+  string literals).
+
 Version: 2026-06-03.12
 Generated: 2026-06-03
 
@@ -120,6 +140,7 @@ Changes in this version:
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from datetime import datetime
@@ -137,11 +158,6 @@ try:
     from atproto import Client as BskyClient  # type: ignore
 except Exception:
     BskyClient = None
-
-try:
-    import tweepy  # type: ignore
-except Exception:
-    tweepy = None
 
 # -----------------------
 # Configuration
@@ -195,6 +211,11 @@ BSKY_YT_URL = "https://youtube.com/@StepTwelveSAA"
 X_HASHTAGS = BSKY_HASHTAGS
 X_URL = "http://bit.ly/step12-t"
 
+# Buffer channel ID for the 'ocisaa' X/Twitter profile (Buffer org: OCISAA).
+# X posting now goes through Buffer's API instead of tweepy/X API directly —
+# see post_to_x() below.
+BUFFER_X_CHANNEL_ID = "678063bf4697c1deff60ae6e"
+
 # -----------------------
 # Logging
 # -----------------------
@@ -214,10 +235,8 @@ load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
 BSKY_USERNAME = os.getenv("BSKY_USERNAME")
 BSKY_APP_PASSWORD = os.getenv("BSKY_APP_PASSWORD")
 
-X_API_KEY = os.getenv("X_API_KEY")
-X_API_SECRET = os.getenv("X_API_SECRET")
-X_ACCESS_TOKEN = os.getenv("X_ACCESS_TOKEN")
-X_ACCESS_TOKEN_SECRET = os.getenv("X_ACCESS_TOKEN_SECRET")
+BUFFER_API_KEY = os.getenv("BUFFER_API_KEY")
+IMGBB_API_KEY = os.getenv("IMGBB_API_KEY")
 
 
 # -----------------------
@@ -736,43 +755,119 @@ def post_to_bluesky(text: str, image_path: Optional[Path] = None):
         return None
 
 
-def post_to_x(text: str, image_path: Optional[Path] = None):
-    """Post to X/Twitter using API v2"""
-    if tweepy is None:
-        logger.warning("tweepy not installed; skipping X/Twitter post.")
-        return None
-    if not all([X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET]):
-        logger.warning("X credentials missing; skipping X post.")
+def upload_to_imgbb(image_path: Path) -> Optional[str]:
+    """
+    Upload an image to imgbb.com and return its public URL, or None on
+    failure. Buffer's createPost mutation requires a publicly accessible
+    image URL (it does not accept raw file uploads), so this is the bridge
+    between our locally-generated PNG and Buffer's asset input.
+    """
+    if not IMGBB_API_KEY:
+        logger.warning("IMGBB_API_KEY not configured; skipping image upload.")
         return None
     try:
-        client = tweepy.Client(
-            consumer_key=X_API_KEY,
-            consumer_secret=X_API_SECRET,
-            access_token=X_ACCESS_TOKEN,
-            access_token_secret=X_ACCESS_TOKEN_SECRET
-        )
-        media_ids = None
-        if image_path and image_path.exists():
-            logger.info("Uploading media to X: %s", image_path)
-            auth = tweepy.OAuth1UserHandler(
-                consumer_key=X_API_KEY,
-                consumer_secret=X_API_SECRET,
-                access_token=X_ACCESS_TOKEN,
-                access_token_secret=X_ACCESS_TOKEN_SECRET,
+        with open(image_path, "rb") as f:
+            resp = requests.post(
+                "https://api.imgbb.com/1/upload",
+                data={"key": IMGBB_API_KEY},
+                files={"image": f},
+                timeout=30,
             )
-            api_v1 = tweepy.API(auth)
-            media = api_v1.media_upload(str(image_path))
-            media_ids = [media.media_id_string]
-        logger.info("Posting tweet via API v2...")
-        if media_ids:
-            response = client.create_tweet(text=text, media_ids=media_ids)
-        else:
-            response = client.create_tweet(text=text)
-        tweet_id = response.data['id']
-        logger.info("Tweet posted successfully: %s", tweet_id)
-        return response
+        resp.raise_for_status()
+        data = resp.json()
+        url = data.get("data", {}).get("url")
+        if not url:
+            logger.warning("imgbb upload succeeded but no URL in response: %s", data)
+            return None
+        logger.info("Uploaded image to imgbb: %s", url)
+        return url
     except Exception as e:
-        logger.exception("Failed to post to X: %s", e)
+        logger.exception("Failed to upload image to imgbb: %s", e)
+        return None
+
+
+def post_to_x(text: str, image_path: Optional[Path] = None):
+    """
+    Post to X/Twitter via Buffer's GraphQL API (createPost mutation),
+    targeting the 'ocisaa' channel. Replaces the old tweepy/X API v2
+    integration, which broke when X restricted free-tier API access.
+
+    Image handling: Buffer requires a publicly accessible image URL rather
+    than a raw file upload, so the PNG is uploaded to imgbb first to get a
+    URL. If that upload fails, we fall back to a text-only tweet rather
+    than failing the whole post.
+    """
+    if not BUFFER_API_KEY:
+        logger.warning("BUFFER_API_KEY not configured; skipping X post.")
+        return None
+    try:
+        assets_fragment = ""
+        if image_path and image_path.exists():
+            image_url = upload_to_imgbb(image_path)
+            if image_url:
+                assets_fragment = (
+                    f'assets: [{{ image: {{ url: {json.dumps(image_url)} }} }}]'
+                )
+            else:
+                logger.warning(
+                    "imgbb upload failed; posting text-only tweet via Buffer."
+                )
+
+        mutation = f"""
+        mutation CreatePost {{
+          createPost(input: {{
+            text: {json.dumps(text)}
+            channelId: {json.dumps(BUFFER_X_CHANNEL_ID)}
+            schedulingType: automatic
+            mode: addToQueue
+            {assets_fragment}
+          }}) {{
+            ... on PostActionSuccess {{
+              post {{
+                id
+                text
+              }}
+            }}
+            ... on MutationError {{
+              message
+            }}
+          }}
+        }}
+        """
+
+        logger.info("Posting to X via Buffer (channel %s)...", BUFFER_X_CHANNEL_ID)
+        resp = requests.post(
+            "https://api.buffer.com",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {BUFFER_API_KEY}",
+            },
+            json={"query": mutation},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+
+        if result.get("errors"):
+            logger.error("Buffer API returned errors: %s", result["errors"])
+            return None
+
+        create_post = (result.get("data") or {}).get("createPost") or {}
+
+        if "message" in create_post:
+            # MutationError typed-union response
+            logger.error("Buffer post failed: %s", create_post["message"])
+            return None
+
+        post = create_post.get("post")
+        if post:
+            logger.info("X post successful via Buffer: %s", post.get("id"))
+            return post
+
+        logger.error("Unexpected Buffer response shape: %s", result)
+        return None
+    except Exception as e:
+        logger.exception("Failed to post to X via Buffer: %s", e)
         return None
 
 

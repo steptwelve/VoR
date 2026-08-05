@@ -2,7 +2,16 @@ name: Daily Meditation Poster
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VoR Daily Meditation — GitHub Actions Workflow
-# Version: 2026-05-18.12
+# Version: 2026-08-04.13
+#
+# Changes in .13 (2026-08-04):
+# - X/Twitter posting now goes through Buffer instead of the X API directly.
+#   daily_poster.py's post_to_x() was rewritten to call Buffer's GraphQL API
+#   (createPost mutation), with the daily PNG uploaded to imgbb.com first to
+#   get a public URL for Buffer's image asset input (Buffer doesn't accept
+#   raw file uploads). Removed X_API_KEY / X_API_SECRET / X_ACCESS_TOKEN /
+#   X_ACCESS_TOKEN_SECRET env vars from the social step; added BUFFER_API_KEY
+#   and IMGBB_API_KEY.
 #
 # Changes in .12 (2026-05-18):
 # - Fixed success notification firing even when social posting (Bluesky/X)
@@ -91,8 +100,9 @@ name: Daily Meditation Poster
 #
 # GITHUB SECRETS REQUIRED (Settings → Secrets and variables → Secrets):
 #   BSKY_USERNAME, BSKY_APP_PASSWORD       — Bluesky credentials
-#   X_API_KEY, X_API_SECRET                — X/Twitter API credentials
-#   X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET  — X/Twitter access credentials
+#   BUFFER_API_KEY                         — Buffer personal API key (X posting)
+#   IMGBB_API_KEY                          — imgbb.com API key (public image
+#                                             URL for Buffer's X image asset)
 #   PEXELS_API_KEY                         — Pexels API key for backgrounds
 #   ANTHROPIC_API_KEY                      — Anthropic API (Spanish translation)
 #   YT_TOKEN_JSON                          — YouTube OAuth token (English channel)
@@ -147,15 +157,17 @@ jobs:
       # daily_poster.py checks for meditations/MM-DD.posted before posting.
       # If found, exits 0 cleanly — prevents duplicates on manual re-runs.
       #
+      # X posting goes through Buffer (BUFFER_API_KEY) rather than the X API
+      # directly. The daily image is uploaded to imgbb (IMGBB_API_KEY) first
+      # to get a public URL for Buffer's image asset input.
+      #
       - name: Scrape meditation and post to Bluesky + X
         id: social
         env:
           BSKY_USERNAME: ${{ secrets.BSKY_USERNAME }}
           BSKY_APP_PASSWORD: ${{ secrets.BSKY_APP_PASSWORD }}
-          X_API_KEY: ${{ secrets.X_API_KEY }}
-          X_API_SECRET: ${{ secrets.X_API_SECRET }}
-          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
-          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+          BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
         run: |
           python daily_poster.py
 
