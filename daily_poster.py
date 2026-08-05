@@ -1,6 +1,18 @@
 """
 daily_poster.py
 
+Version: 2026-08-05.15
+Generated: 2026-08-05
+
+Changes in the .15 version:
+- Added a 7-day expiration to imgbb uploads (expiration=604800 seconds) in
+  upload_to_imgbb(). Previously uploads had no expiration set, meaning
+  imgbb stored every daily image forever by default. The URL is only ever
+  needed briefly (Buffer fetches it once, moments after upload, when
+  publishing the tweet), so there's no reason to keep it hosted
+  indefinitely. 7 days leaves a buffer for retries/debugging without
+  accumulating images forever.
+
 Version: 2026-08-05.14
 Generated: 2026-08-05
 
@@ -794,7 +806,7 @@ def upload_to_imgbb(image_path: Path, max_attempts: int = 3) -> Optional[str]:
             with open(image_path, "rb") as f:
                 resp = requests.post(
                     "https://api.imgbb.com/1/upload",
-                    data={"key": IMGBB_API_KEY},
+                    data={"key": IMGBB_API_KEY, "expiration": 604800},  # 7 days
                     files={"image": f},
                     timeout=30,
                 )
