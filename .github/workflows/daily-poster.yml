@@ -2,7 +2,15 @@ name: Daily Meditation Poster
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VoR Daily Meditation — GitHub Actions Workflow
-# Version: 2026-08-04.13
+# Version: 2026-10-12.14
+#
+# Changes in .14 (2026-10-12):
+# - Fixed every step check to use steps.<id>.outcome instead of .conclusion.
+#   With continue-on-error: true, a failed step has outcome='failure' but
+#   conclusion='success', so the .11 change made failures invisible: failure
+#   Pushovers never fired, uploads ran after failed builds, and the
+#   "Daily run complete" success Pushover fired anyway (10-12 edge-tts 403).
+#   Downstream steps now only run if the upstream step really succeeded.
 #
 # Changes in .13 (2026-08-04):
 # - X/Twitter posting now goes through Buffer instead of the X API directly.
@@ -115,9 +123,10 @@ name: Daily Meditation Poster
 #    0  Normal         — Any step failure needing investigation
 #
 # NOTE ON continue-on-error AND NOTIFICATIONS:
-#   Steps with continue-on-error: true always show outcome='success' even
-#   when the command fails. Only conclusion='failure' reflects the real exit
-#   code. All failure notifications use conclusion, not outcome.
+#   Steps with continue-on-error: true always show conclusion='success' even
+#   when the command fails. Only outcome='failure' reflects the real exit
+#   code. All step checks (gating and notifications) use outcome, not
+#   conclusion. (The .11 note below had this backwards — fixed 2026-10-12.)
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -172,7 +181,7 @@ jobs:
           python daily_poster.py
 
       - name: Notify — Step 1 failure (scrape or social post failure)
-        if: always() && steps.social.conclusion == 'failure'
+        if: always() && steps.social.outcome == 'failure'
         run: |
           curl -s \
             --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
@@ -193,7 +202,7 @@ jobs:
           python download_background.py --output /tmp/background.mp4
 
       - name: Notify — Pexels video skipped (soft warning)
-        if: vars.ENABLE_VIDEO == 'true' && steps.background.conclusion == 'success'
+        if: vars.ENABLE_VIDEO == 'true' && steps.background.outcome == 'success'
         run: |
           if [ -f /tmp/pexels_warning.txt ]; then
             MSG=$(cat /tmp/pexels_warning.txt)
@@ -207,7 +216,7 @@ jobs:
           fi
 
       - name: Notify — background download failed
-        if: vars.ENABLE_VIDEO == 'true' && steps.background.conclusion == 'failure'
+        if: vars.ENABLE_VIDEO == 'true' && steps.background.outcome == 'failure'
         run: |
           curl -s \
             --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
@@ -219,7 +228,7 @@ jobs:
 
       # ── Step 3: Install video dependencies ───────────────────────────────────
       - name: Install video dependencies (ffmpeg + edge-tts)
-        if: vars.ENABLE_VIDEO == 'true' && steps.background.conclusion == 'success'
+        if: vars.ENABLE_VIDEO == 'true' && steps.background.outcome == 'success'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y ffmpeg fonts-liberation
@@ -228,7 +237,7 @@ jobs:
       # ── Step 4: Build and upload English video to YouTube ────────────────────
       - name: Build English video
         id: build_en
-        if: vars.ENABLE_VIDEO == 'true' && steps.background.conclusion == 'success'
+        if: vars.ENABLE_VIDEO == 'true' && steps.background.outcome == 'success'
         continue-on-error: true
         run: |
           chmod +x build-video.sh
@@ -238,7 +247,7 @@ jobs:
 
       - name: Upload English video to YouTube
         id: upload_en
-        if: vars.ENABLE_VIDEO == 'true' && steps.build_en.conclusion == 'success'
+        if: vars.ENABLE_VIDEO == 'true' && steps.build_en.outcome == 'success'
         continue-on-error: true
         env:
           YT_TOKEN_JSON: ${{ secrets.YT_TOKEN_JSON }}
@@ -248,10 +257,10 @@ jobs:
       - name: Notify — English video failure
         if: |
           vars.ENABLE_VIDEO == 'true' &&
-          (steps.build_en.conclusion == 'failure' || steps.upload_en.conclusion == 'failure')
+          (steps.build_en.outcome == 'failure' || steps.upload_en.outcome == 'failure')
         run: |
           STAGE="build"
-          if [ "${{ steps.build_en.conclusion }}" == "success" ]; then STAGE="upload"; fi
+          if [ "${{ steps.build_en.outcome }}" == "success" ]; then STAGE="upload"; fi
           curl -s \
             --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
             --form-string "user=${{ secrets.PUSHOVER_USER_KEY }}" \
@@ -263,7 +272,7 @@ jobs:
       # ── Step 5: Translate, build, and upload Spanish video ───────────────────
       - name: Translate meditation to Spanish
         id: translate_es
-        if: vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SPANISH == 'true' && steps.background.conclusion == 'success'
+        if: vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SPANISH == 'true' && steps.background.outcome == 'success'
         continue-on-error: true
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -272,7 +281,7 @@ jobs:
           python translate_meditation.py --date $MMDD
 
       - name: Notify — Spanish translation failure
-        if: vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SPANISH == 'true' && steps.translate_es.conclusion == 'failure'
+        if: vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SPANISH == 'true' && steps.translate_es.outcome == 'failure'
         run: |
           curl -s \
             --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
@@ -284,7 +293,7 @@ jobs:
 
       - name: Build Spanish video
         id: build_es
-        if: vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SPANISH == 'true' && steps.translate_es.conclusion == 'success'
+        if: vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SPANISH == 'true' && steps.translate_es.outcome == 'success'
         continue-on-error: true
         run: |
           chmod +x build-video.sh
@@ -294,7 +303,7 @@ jobs:
 
       - name: Upload Spanish video to YouTube
         id: upload_es
-        if: vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SPANISH == 'true' && steps.build_es.conclusion == 'success'
+        if: vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SPANISH == 'true' && steps.build_es.outcome == 'success'
         continue-on-error: true
         env:
           YT_TOKEN_JSON: ${{ secrets.YT_TOKEN_JSON }}
@@ -305,10 +314,10 @@ jobs:
       - name: Notify — Spanish build or upload failure
         if: |
           vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SPANISH == 'true' &&
-          (steps.build_es.conclusion == 'failure' || steps.upload_es.conclusion == 'failure')
+          (steps.build_es.outcome == 'failure' || steps.upload_es.outcome == 'failure')
         run: |
           STAGE="build"
-          if [ "${{ steps.build_es.conclusion }}" == "success" ]; then STAGE="upload"; fi
+          if [ "${{ steps.build_es.outcome }}" == "success" ]; then STAGE="upload"; fi
           curl -s \
             --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
             --form-string "user=${{ secrets.PUSHOVER_USER_KEY }}" \
@@ -396,14 +405,14 @@ jobs:
       - name: Notify — success
         if: |
           always() &&
-          steps.social.conclusion != 'failure' &&
+          steps.social.outcome != 'failure' &&
           steps.commit.outcome == 'success' &&
-          steps.background.conclusion != 'failure' &&
-          steps.build_en.conclusion != 'failure' &&
-          steps.upload_en.conclusion != 'failure' &&
-          steps.translate_es.conclusion != 'failure' &&
-          steps.build_es.conclusion != 'failure' &&
-          steps.upload_es.conclusion != 'failure'
+          steps.background.outcome != 'failure' &&
+          steps.build_en.outcome != 'failure' &&
+          steps.upload_en.outcome != 'failure' &&
+          steps.translate_es.outcome != 'failure' &&
+          steps.build_es.outcome != 'failure' &&
+          steps.upload_es.outcome != 'failure'
         run: |
           curl -s \
             --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
