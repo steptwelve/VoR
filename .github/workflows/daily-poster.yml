@@ -11,6 +11,8 @@ name: Daily Meditation Poster
 #   Pushovers never fired, uploads ran after failed builds, and the
 #   "Daily run complete" success Pushover fired anyway (10-12 edge-tts 403).
 #   Downstream steps now only run if the upstream step really succeeded.
+# - edge-tts installed from pinned upstream PR #491 (temporary, approved by
+#   Jackson) — Microsoft's legacy TTS host returns 403 since 2026-10-10.
 #
 # Changes in .13 (2026-08-04):
 # - X/Twitter posting now goes through Buffer instead of the X API directly.
@@ -232,7 +234,15 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y ffmpeg fonts-liberation
-          pip install edge-tts pillow
+          pip install pillow
+          # TEMPORARY (2026-10-12): Microsoft's legacy Read Aloud host returns
+          # 403 since 2026-10-10 for every edge-tts release (upstream issue
+          # rany2/edge-tts#490). PR #491 moves synthesis to
+          # api.msedgeservices.com. Pinned to the reviewed PR commit until a
+          # fixed release ships, then go back to a plain `pip install edge-tts`.
+          pip install --force-reinstall --no-deps \
+            "git+https://github.com/jonata/edge-tts@8a5844c3a1d33e4e8f2f3e14535542c0d75d4248"
+          python -c "import edge_tts.constants as c; assert 'msedgeservices' in c.WSS_URL, c.WSS_URL; print('edge-tts endpoint OK')"
 
       # ── Step 4: Build and upload English video to YouTube ────────────────────
       - name: Build English video
