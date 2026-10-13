@@ -21,15 +21,23 @@ SCOPES = [
     "https://www.googleapis.com/auth/youtube",
 ]
 BRAND = sys.argv[1].lower() if len(sys.argv) > 1 else "vor"
+# brand: (token file, GitHub secret, label, OAuth client file)
+# SCISAA has its own Google Cloud project (scisaa-daily-reflections) so its
+# uploads use a separate 10,000-unit daily quota.
 TARGETS = {
-    "vor":    ("youtube_token.json",        "YT_TOKEN_JSON",        "@StepTwelveSAA"),
-    "scisaa": ("youtube_token_scisaa.json", "YT_TOKEN_JSON_SCISAA", "SCISAA (@SCISAA)"),
+    "vor":    ("youtube_token.json",        "YT_TOKEN_JSON",        "@StepTwelveSAA",
+               "youtube_client_secrets.json"),
+    "scisaa": ("youtube_token_scisaa.json", "YT_TOKEN_JSON_SCISAA", "SCISAA (@SCISAA)",
+               "youtube_client_secrets_scisaa.json"),
 }
 if BRAND not in TARGETS:
     sys.exit(f"Unknown channel '{BRAND}'. Use one of: {', '.join(TARGETS)}")
-token_name, secret_name, channel_label = TARGETS[BRAND]
+token_name, secret_name, channel_label, client_name = TARGETS[BRAND]
 
-CLIENT_SECRETS = Path(__file__).parent / "youtube_client_secrets.json"
+CLIENT_SECRETS = Path(__file__).parent / client_name
+if not CLIENT_SECRETS.exists():
+    sys.exit(f"❌ Missing {client_name} — download the OAuth client JSON "
+             f"from Google Cloud and save it in {CLIENT_SECRETS.parent}")
 TOKEN_FILE = Path(__file__).parent / token_name
 
 print(f"Authorizing for {channel_label}.")

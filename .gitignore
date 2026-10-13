@@ -24,7 +24,7 @@ ENV/
 # YouTube credentials — never commit these
 youtube_token.json
 youtube_token_*.json
-youtube_client_secrets.json
+youtube_client_secrets*.json
 claude_creds.json
 channel_stats.json
 
