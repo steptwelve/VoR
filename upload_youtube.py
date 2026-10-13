@@ -26,8 +26,15 @@ LANG   = sys.argv[3] if len(sys.argv) > 3 else os.environ.get("VOR_LANG", "en")
 DAILY_DIR  = Path(__file__).parent
 OUTPUT_DIR = DAILY_DIR / "output"
 
+# VOR_FORMAT=short uploads the vertical Short built by build_short.py
+IS_SHORT = os.environ.get("VOR_FORMAT", "") == "short"
+LANG_SUFFIX = "-es" if LANG == "es" else ""
+
 # File paths
-if LANG == "es":
+if IS_SHORT:
+    VIDEO_FILE     = OUTPUT_DIR / f"{MMDD}{LANG_SUFFIX}-SHORT.mp4"
+    THUMBNAIL_FILE = None   # the API can't set custom thumbnails on Shorts
+elif LANG == "es":
     VIDEO_FILE     = OUTPUT_DIR / f"{MMDD}-es-FINAL.mp4"
     THUMBNAIL_FILE = OUTPUT_DIR / f"{MMDD}-es-titlecard.png"
 else:
@@ -41,7 +48,7 @@ CLIENT_SECRETS_FILE = DAILY_DIR / "youtube_client_secrets.json"
 if not VIDEO_FILE.exists():
     print(f"❌ Video not found: {VIDEO_FILE}")
     sys.exit(1)
-if not THUMBNAIL_FILE.exists():
+if THUMBNAIL_FILE and not THUMBNAIL_FILE.exists():
     print(f"⚠️  Thumbnail not found: {THUMBNAIL_FILE} (uploading without thumbnail)")
     THUMBNAIL_FILE = None
 
@@ -91,6 +98,17 @@ Sex Addicts Anonymous (SAA) is a fellowship of individuals who share their exper
                    "spirituality", "12 step"]
     playlist_id = os.environ.get("YT_PLAYLIST_ID_EN",
                                  "PL8OsToLnGRr_XtJlzH-Md6QmFkkcpuMSl")
+
+# ── Short-specific metadata ───────────────────────────────────
+# Same text as the landscape video, plus #Shorts in the title, and its own
+# (optional) playlist so Shorts don't mix into the daily-video playlist.
+if IS_SHORT:
+    title = f"{title} #Shorts"
+    description = "#Shorts\n" + description
+    playlist_id = os.environ.get(
+        "YT_PLAYLIST_ID_SHORTS_ES" if LANG == "es" else "YT_PLAYLIST_ID_SHORTS", "")
+
+PRIVACY = os.environ.get("YT_PRIVACY_SHORTS", "public") if IS_SHORT else "public"
 
 # ── Google API auth ───────────────────────────────────────────
 from google.oauth2.credentials import Credentials
@@ -150,7 +168,7 @@ body = {
         "categoryId":  "22",  # People & Blogs
     },
     "status": {
-        "privacyStatus":           "public",
+        "privacyStatus":           PRIVACY,
         "selfDeclaredMadeForKids": False,
     },
 }

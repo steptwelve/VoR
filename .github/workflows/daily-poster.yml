@@ -2,7 +2,13 @@ name: Daily Meditation Poster
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VoR Daily Meditation — GitHub Actions Workflow
-# Version: 2026-10-12.14
+# Version: 2026-10-13.15
+#
+# Changes in .15 (2026-10-13):
+# - Added an English YouTube Short (Step 4b): build_short.py renders a
+#   1080x1920 version with burned-in captions; upload_youtube.py uploads it
+#   with VOR_FORMAT=short. Off unless repo variable ENABLE_SHORTS == 'true'.
+#   Over-3:00 days are skipped with a Pushover warning (never truncated).
 #
 # Changes in .14 (2026-10-12):
 # - Fixed every step check to use steps.<id>.outcome instead of .conclusion.
@@ -279,6 +285,55 @@ jobs:
             --form-string "priority=0" \
             https://api.pushover.net/1/messages.json
 
+      # ── Step 4b: English YouTube Short (vertical, captions burned in) ────────
+      # Gated by repo variable ENABLE_SHORTS ('true' to turn on). Reuses the
+      # same background and voice as the landscape video. build_short.py exits
+      # 3 if the Short would exceed 3:00 — we skip and warn, never truncate.
+      # Optional repo variables: YT_PLAYLIST_ID_SHORTS (playlist for Shorts),
+      # YT_PRIVACY_SHORTS (public | unlisted | private; default public).
+      - name: Build English Short
+        id: build_short_en
+        if: vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SHORTS == 'true' && steps.background.outcome == 'success'
+        continue-on-error: true
+        run: |
+          MMDD=$(date +'%m-%d')
+          YEAR=$(date +'%Y')
+          BACKGROUND_VIDEO=/tmp/background.mp4 python build_short.py $MMDD $YEAR
+
+      - name: Upload English Short to YouTube
+        id: upload_short_en
+        if: vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SHORTS == 'true' && steps.build_short_en.outcome == 'success'
+        continue-on-error: true
+        env:
+          YT_TOKEN_JSON: ${{ secrets.YT_TOKEN_JSON }}
+          VOR_FORMAT: short
+          YT_PLAYLIST_ID_SHORTS: ${{ vars.YT_PLAYLIST_ID_SHORTS }}
+          YT_PRIVACY_SHORTS: ${{ vars.YT_PRIVACY_SHORTS || 'public' }}
+        run: |
+          python upload_youtube.py
+
+      - name: Notify — English Short skipped or failed
+        if: |
+          vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SHORTS == 'true' &&
+          (steps.build_short_en.outcome == 'failure' || steps.upload_short_en.outcome == 'failure')
+        run: |
+          if [ -f /tmp/short_warning.txt ]; then
+            TITLE="VoR Warning: Short skipped"
+            MSG=$(cat /tmp/short_warning.txt)
+          else
+            STAGE="build"
+            if [ "${{ steps.build_short_en.outcome }}" == "success" ]; then STAGE="upload"; fi
+            TITLE="VoR FAILURE: English Short ${STAGE}"
+            MSG="English Short ${STAGE} failed on $(date +'%m-%d'). Check GitHub Actions logs."
+          fi
+          curl -s \
+            --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
+            --form-string "user=${{ secrets.PUSHOVER_USER_KEY }}" \
+            --form-string "title=${TITLE}" \
+            --form-string "message=${MSG}" \
+            --form-string "priority=0" \
+            https://api.pushover.net/1/messages.json
+
       # ── Step 5: Translate, build, and upload Spanish video ───────────────────
       - name: Translate meditation to Spanish
         id: translate_es
@@ -420,6 +475,8 @@ jobs:
           steps.background.outcome != 'failure' &&
           steps.build_en.outcome != 'failure' &&
           steps.upload_en.outcome != 'failure' &&
+          steps.build_short_en.outcome != 'failure' &&
+          steps.upload_short_en.outcome != 'failure' &&
           steps.translate_es.outcome != 'failure' &&
           steps.build_es.outcome != 'failure' &&
           steps.upload_es.outcome != 'failure'
