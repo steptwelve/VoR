@@ -1006,20 +1006,28 @@ def main():
     x_text = build_x_text(full_text)
 
     bsky_res = post_to_bluesky(bsky_text, png_path if png_path.exists() else None)
-    x_res = post_to_x(x_text, png_path if png_path.exists() else None)
+
+    # DEFER_X=1 (workflow variable X_VIDEO): X is posted later by
+    # post_x_video.py, with the YouTube Short as a native video.
+    x_deferred = os.environ.get("DEFER_X") == "1"
+    if x_deferred:
+        logger.info("X post deferred to post_x_video.py (DEFER_X=1).")
+        x_res = None
+    else:
+        x_res = post_to_x(x_text, png_path if png_path.exists() else None)
 
     bsky_ok = bsky_res is not None
     x_ok = x_res is not None
 
     if not bsky_ok:
         logger.warning("Bluesky post FAILED for %s", mmdd)
-    if not x_ok:
+    if not x_ok and not x_deferred:
         logger.warning("X/Twitter post FAILED for %s", mmdd)
 
     print("\n=== SUMMARY ===")
     print(f"Date:      {mmdd}")
     print(f"Bluesky:   {'SUCCESS' if bsky_ok else 'FAILED'}")
-    print(f"X/Twitter: {'SUCCESS' if x_ok else 'FAILED'}\n")
+    print(f"X/Twitter: {'DEFERRED' if x_deferred else ('SUCCESS' if x_ok else 'FAILED')}\n")
 
     logger.info(
         "Finished run for %s — Bluesky: %s  X: %s",
@@ -1029,12 +1037,13 @@ def main():
     # ── Write .posted flag if at least one platform succeeded ─────────────────
     # This prevents duplicate posts on subsequent runs the same day.
     # The file is committed to the repo by the workflow commit step.
-    if bsky_ok or x_ok:
+    if bsky_ok or x_ok or x_deferred:
+        x_state = "deferred" if x_deferred else ("ok" if x_ok else "failed")
         timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         posted_path.write_text(
             f"posted: {timestamp}\n"
             f"bluesky: {'ok' if bsky_ok else 'failed'}\n"
-            f"x_twitter: {'ok' if x_ok else 'failed'}\n"
+            f"x_twitter: {x_state}\n"
         )
         logger.info("Wrote duplicate guard: %s", posted_path.name)
 

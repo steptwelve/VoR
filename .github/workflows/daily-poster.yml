@@ -2,7 +2,13 @@ name: Daily Meditation Poster
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VoR Daily Meditation — GitHub Actions Workflow
-# Version: 2026-10-13.15
+# Version: 2026-10-13.16
+#
+# Changes in .16 (2026-10-13):
+# - Optional X native-video posting (repo variable X_VIDEO == 'true'):
+#   Step 1 defers X (DEFER_X=1); Step 5b posts the Short to X via Buffer,
+#   hosted on the 'x-media' release, falling back to the image post when
+#   the Short is missing, over 2:20, or fails in Buffer.
 #
 # Changes in .15 (2026-10-13):
 # - Added an English YouTube Short (Step 4b): build_short.py renders a
@@ -185,6 +191,8 @@ jobs:
           BSKY_APP_PASSWORD: ${{ secrets.BSKY_APP_PASSWORD }}
           BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
           IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
+          # X_VIDEO: X is posted later (Step 5b) with the Short as native video
+          DEFER_X: ${{ vars.X_VIDEO == 'true' && '1' || '' }}
         run: |
           python daily_poster.py
 
@@ -391,6 +399,35 @@ jobs:
             --form-string "priority=0" \
             https://api.pushover.net/1/messages.json
 
+      # ── Step 5b: X post with the Short as native video ───────────────────────
+      # Only when repo variable X_VIDEO == 'true' (Step 1 then defers X).
+      # Posts the Short if it exists and is <= 2:20 (X's non-Premium limit);
+      # otherwise, or if Buffer reports the video failed, posts the usual
+      # image. The MP4 is hosted on the rolling 'x-media' GitHub release
+      # because Buffer only takes media by URL. Acts only when MM-DD.posted
+      # says "x_twitter: deferred", so re-runs never double-post.
+      - name: Post to X (Short video, image fallback)
+        id: x_video
+        if: always() && vars.X_VIDEO == 'true'
+        continue-on-error: true
+        env:
+          BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python post_x_video.py $(date +'%m-%d')
+
+      - name: Notify — X post failure
+        if: always() && vars.X_VIDEO == 'true' && steps.x_video.outcome == 'failure'
+        run: |
+          curl -s \
+            --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
+            --form-string "user=${{ secrets.PUSHOVER_USER_KEY }}" \
+            --form-string "title=VoR FAILURE: X post" \
+            --form-string "message=X post (video and image fallback) failed on $(date +'%m-%d'). Check GitHub Actions logs." \
+            --form-string "priority=0" \
+            https://api.pushover.net/1/messages.json
+
       # ── Step 6: Commit new files to repo ─────────────────────────────────────
       #
       # Always runs via if: always(). Commits meditation text, .posted flag
@@ -477,6 +514,7 @@ jobs:
           steps.upload_en.outcome != 'failure' &&
           steps.build_short_en.outcome != 'failure' &&
           steps.upload_short_en.outcome != 'failure' &&
+          steps.x_video.outcome != 'failure' &&
           steps.translate_es.outcome != 'failure' &&
           steps.build_es.outcome != 'failure' &&
           steps.upload_es.outcome != 'failure'
