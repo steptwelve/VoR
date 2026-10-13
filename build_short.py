@@ -6,8 +6,11 @@ Usage:
     python3 build_short.py MM-DD YYYY
     VOR_LANG=es python3 build_short.py MM-DD YYYY
     BACKGROUND_VIDEO=/tmp/background.mp4 python3 build_short.py MM-DD YYYY
+    SHORT_BRANDS=vor,scisaa python3 build_short.py MM-DD YYYY
 
 Output: output/MM-DD-SHORT.mp4  (or MM-DD-es-SHORT.mp4)
+        output/MM-DD-SCISAA-SHORT.mp4 when "scisaa" is in SHORT_BRANDS
+        (same narration and captions; SCISAA end card and closing words)
 
 Differences from build-video.sh (landscape):
   - 1080x1920 (9:16), so YouTube classifies it as a Short.
@@ -46,12 +49,42 @@ LANG = os.environ.get("VOR_LANG", "en")
 
 MED_DIR = DAILY_DIR / "meditations"
 OUT_DIR = DAILY_DIR / "output"
-BRAND_IMG = DAILY_DIR / "backgrounds" / "ChatGPT-Image-VoR.png"
 TEMPLATES = DAILY_DIR / "templates"
 
 suffix = "-es" if LANG == "es" else ""
 MED_TEXT = MED_DIR / f"{MMDD}{suffix}.txt"
-OUTPUT = OUT_DIR / f"{MMDD}{suffix}-SHORT.mp4"
+
+# One narrated main segment, one end card per brand. SHORT_BRANDS lists the
+# brands to build (e.g. "vor,scisaa"); each gets its own output file:
+#   vor    -> output/MM-DD[-es]-SHORT.mp4         (@StepTwelveSAA)
+#   scisaa -> output/MM-DD[-es]-SCISAA-SHORT.mp4  (SCISAA channel)
+BRANDS = {
+    "vor": {
+        "image": DAILY_DIR / "backgrounds" / "ChatGPT-Image-VoR.png",
+        "crop_top": 0.26,     # drop the "Voices of Recovery" title band
+        "center_x": 0.40,     # keep the sunburst
+        "tag": "",
+        "narration": "endcard-narration",
+        "photo_credit": "",
+    },
+    "scisaa": {
+        "image": DAILY_DIR / "backgrounds" / "scisaa-la-skyline.jpg",
+        "crop_top": 0.0,
+        "center_x": 0.30,     # downtown skyline + the palm-lined road
+        "tag": "-SCISAA",
+        "narration": "endcard-narration-scisaa",
+        "photo_credit": "Photo: Venti Views / Unsplash  |  ",
+    },
+}
+SHORT_BRANDS = [b.strip() for b in os.environ.get("SHORT_BRANDS", "vor").split(",")
+                if b.strip()]
+for _b in SHORT_BRANDS:
+    if _b not in BRANDS:
+        sys.exit(f"Unknown brand in SHORT_BRANDS: {_b}")
+
+
+def output_for(brand):
+    return OUT_DIR / f"{MMDD}{suffix}{BRANDS[brand]['tag']}-SHORT.mp4"
 
 EN_VOICES = ["en-US-GuyNeural", "en-US-JennyNeural", "en-US-ChristopherNeural",
              "en-US-AriaNeural", "en-US-EricNeural", "en-US-MichelleNeural"]
@@ -224,30 +257,43 @@ def render_header(path, date_str):
     img.save(path)
 
 
-def render_endcard(path):
-    bg = Image.open(BRAND_IMG).convert("RGB")
+def render_endcard(path, brand="vor"):
+    cfg = BRANDS[brand]
+    bg = Image.open(cfg["image"]).convert("RGB")
     iw, ih = bg.size
-    bg = bg.crop((0, int(ih * 0.26), iw, ih))          # drop the title band
+    bg = bg.crop((0, int(ih * cfg["crop_top"]), iw, ih))
     s = H / bg.height
     bg = bg.resize((int(bg.width * s), H), Image.LANCZOS)
-    left = int(bg.width * 0.40 - W / 2)                 # keep the sunburst
+    left = int(bg.width * cfg["center_x"] - W / 2)
     left = max(0, min(left, bg.width - W))
     bg = bg.crop((left, 0, left + W, H)).convert("RGBA")
 
     if LANG == "es":
-        cta = "Para saber más sobre SAA, visita:"
         quote = ('"Una confraternidad de personas que comparten su experiencia, '
                  'fortaleza y esperanza entre sí para superar su adicción sexual '
                  'y ayudar a otros a recuperarse de la adicción o dependencia sexual."')
-        meet = "Encuentra una reunión: saa-meetings.org"
-        attr = "Video: Pexels.com  |  Narración: Microsoft Azure TTS"
+        attr = cfg["photo_credit"] + "Video: Pexels.com  |  Narración: Microsoft Azure TTS"
+        if brand == "scisaa":
+            cta = "Reuniones de SAA en el Sur de California:"
+            url = "scisaa.org"
+            meet = "En todo el mundo: saa-recovery.org"
+        else:
+            cta = "Para saber más sobre SAA, visita:"
+            url = "saa-recovery.org"
+            meet = "Encuentra una reunión: saa-meetings.org"
     else:
-        cta = "To learn more about SAA, visit:"
         quote = ('"A fellowship of individuals who share their experience, strength, '
                  'and hope with each other so they may overcome their sexual addiction '
                  'and help others recover from sexual addiction or dependency."')
-        meet = "Find a meeting: saa-meetings.org"
-        attr = "Video: Pexels.com  |  Narration: Microsoft Azure TTS"
+        attr = cfg["photo_credit"] + "Video: Pexels.com  |  Narration: Microsoft Azure TTS"
+        if brand == "scisaa":
+            cta = "SAA meetings in Southern California:"
+            url = "scisaa.org"
+            meet = "Worldwide: saa-recovery.org"
+        else:
+            cta = "To learn more about SAA, visit:"
+            url = "saa-recovery.org"
+            meet = "Find a meeting: saa-meetings.org"
 
     qf = font(40)
     probe = ImageDraw.Draw(bg)
@@ -264,13 +310,16 @@ def render_endcard(path):
         d.text(((W - text_w(d, text, f)) // 2, y), text, font=f, fill=col)
 
     center(cta, font(46), top + 70)
-    center("saa-recovery.org", font(92, True), top + 145)
+    center(url, font(110 if len(url) < 12 else 92, True), top + 140)
     y = top + 320
     for line in quote_lines:
         center(line, qf, y, (210, 225, 210))
         y += 54
     center(meet, font(42, True), y + 35)
-    center(attr, font(24), y + 115, (210, 225, 210))
+    af = font(24)
+    while text_w(d, attr, af) > W - 160 and af.size > 16:
+        af = font(af.size - 1)
+    center(attr, af, y + 115, (210, 225, 210))
     img.convert("RGB").save(path)
 
 
@@ -288,40 +337,50 @@ def main():
     if LANG == "es":
         date_str = f"{d.day} de {SPANISH_MONTHS[d.month - 1]} de {d.year}"
         intro = f"Esta es la Meditación Diaria del {date_str}, de Voces de Recuperación."
-        end_file = TEMPLATES / "endcard-narration-es.txt"
-        if not end_file.exists():
-            end_file = TEMPLATES / "endcard-narration.txt"
     else:
         date_str = d.strftime("%B %-d, %Y")
         intro = f"Here's the Daily Meditation for {date_str} from Voices of Recovery."
-        end_file = TEMPLATES / "endcard-narration.txt"
+
+    def end_file_for(brand):
+        base = BRANDS[brand]["narration"]
+        for name in ([f"{base}-es.txt", "endcard-narration-es.txt"] if LANG == "es"
+                     else []) + [f"{base}.txt", "endcard-narration.txt"]:
+            if (TEMPLATES / name).exists():
+                return TEMPLATES / name
 
     voice = pick_voice()
-    log(f"📱 Building Short for {date_str} ({LANG}) — voice {voice}")
+    log(f"📱 Building Short for {date_str} ({LANG}) — voice {voice} — "
+        f"brands {', '.join(SHORT_BRANDS)}")
     work = Path(tempfile.mkdtemp(prefix=f"vor-short-{MMDD}-{LANG}-"))
     OUT_DIR.mkdir(exist_ok=True)
 
-    # 1. Narration (intro + meditation) with sentence timings, and end card
+    # 1. Narration (intro + meditation) with sentence timings, and end cards
     narr_txt = work / "narration.txt"
     narr_txt.write_text(intro + "\n\n" + MED_TEXT.read_text(encoding="utf-8"),
                         encoding="utf-8")
     tts(narr_txt, voice, work / "narration.mp3", work / "narration.srt")
-    tts(end_file, voice, work / "endcard.mp3")
     main_dur = duration(work / "narration.mp3") + 0.6
-    end_dur = duration(work / "endcard.mp3") + 1.0
-    total = main_dur + end_dur
-    log(f"   Narration {main_dur:.1f}s + end card {end_dur:.1f}s = {total:.1f}s")
-    if total > MAX_SECONDS:
-        log(f"⚠️  {total:.0f}s is over the 3:00 Shorts limit — skipping the Short.")
+    end_durs, skipped = {}, []
+    for brand in SHORT_BRANDS:
+        tts(end_file_for(brand), voice, work / f"endcard-{brand}.mp3")
+        end_durs[brand] = duration(work / f"endcard-{brand}.mp3") + 1.0
+        total = main_dur + end_durs[brand]
+        log(f"   [{brand}] narration {main_dur:.1f}s + end card "
+            f"{end_durs[brand]:.1f}s = {total:.1f}s")
+        if total > MAX_SECONDS:
+            skipped.append(f"{brand} ({total:.0f}s)")
+            del end_durs[brand]
+    if skipped:
+        log(f"⚠️  Over the 3:00 Shorts limit — skipping: {', '.join(skipped)}")
         Path("/tmp/short_warning.txt").write_text(
-            f"{MMDD} Short skipped: {total:.0f}s exceeds the 3:00 Shorts limit.")
+            f"{MMDD} Short skipped: {', '.join(skipped)} exceeds the 3:00 Shorts limit.")
+    if not end_durs:
         sys.exit(3)
 
-    # 2. Overlays: header, caption frames, end card
+    # 2. Overlays: header, caption frames
     probe = ImageDraw.Draw(Image.new("RGB", (10, 10)))
     cf = font(CAPTION_FONT_SIZE, True)
     render_header(work / "header.png", date_str)
-    render_endcard(work / "endcard.png")
     blank = work / "cap_blank.png"
     Image.new("RGBA", (W, H), (0, 0, 0, 0)).save(blank)
 
@@ -360,28 +419,33 @@ def main():
          "-c:a", "aac", "-ar", "44100", "-ac", "2", "-b:a", "128k",
          "-t", f"{main_dur:.3f}", str(work / "main.mp4")])
 
-    # 4. End card segment
-    run(["ffmpeg", "-y", "-loop", "1", "-i", str(work / "endcard.png"),
-         "-i", str(work / "endcard.mp3"),
-         "-vf", f"scale={W}:{H},fps={FPS},format=yuv420p",
-         "-af", "adelay=1000:all=1,apad",
-         "-c:v", "libx264", "-preset", "fast", "-crf", "21",
-         "-c:a", "aac", "-ar", "44100", "-ac", "2", "-b:a", "128k",
-         "-t", f"{end_dur:.3f}", str(work / "end.mp4")])
-
-    # 5. Join
-    run(["ffmpeg", "-y", "-i", str(work / "main.mp4"), "-i", str(work / "end.mp4"),
-         "-filter_complex", "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]",
-         "-map", "[v]", "-map", "[a]",
-         "-c:v", "libx264", "-preset", "fast", "-crf", "21",
-         "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(OUTPUT)])
-
-    final = duration(OUTPUT)
-    if final > MAX_SECONDS:
-        OUTPUT.unlink()
-        log(f"⚠️  Final {final:.0f}s exceeds the Shorts limit — removed.")
+    # 4-5. Per brand: end card segment, then join with the shared main segment
+    built = 0
+    for brand, end_dur in end_durs.items():
+        png, end_mp4, out = (work / f"endcard-{brand}.png", work / f"end-{brand}.mp4",
+                             output_for(brand))
+        render_endcard(png, brand)
+        run(["ffmpeg", "-y", "-loop", "1", "-i", str(png),
+             "-i", str(work / f"endcard-{brand}.mp3"),
+             "-vf", f"scale={W}:{H},fps={FPS},format=yuv420p",
+             "-af", "adelay=1000:all=1,apad",
+             "-c:v", "libx264", "-preset", "fast", "-crf", "21",
+             "-c:a", "aac", "-ar", "44100", "-ac", "2", "-b:a", "128k",
+             "-t", f"{end_dur:.3f}", str(end_mp4)])
+        run(["ffmpeg", "-y", "-i", str(work / "main.mp4"), "-i", str(end_mp4),
+             "-filter_complex", "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]",
+             "-map", "[v]", "-map", "[a]",
+             "-c:v", "libx264", "-preset", "fast", "-crf", "21",
+             "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(out)])
+        final = duration(out)
+        if final > MAX_SECONDS:
+            out.unlink()
+            log(f"⚠️  [{brand}] final {final:.0f}s exceeds the Shorts limit — removed.")
+            continue
+        built += 1
+        log(f"🎉 Short ready: {out}  ({final:.0f}s)")
+    if not built:
         sys.exit(3)
-    log(f"🎉 Short ready: {OUTPUT}  ({final:.0f}s)")
 
 
 if __name__ == "__main__":

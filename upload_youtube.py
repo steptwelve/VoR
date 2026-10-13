@@ -8,6 +8,11 @@ Usage:
     python3 upload_youtube.py 03-10 2026 es # uploads Spanish version
 
 Reads credentials from youtube_token.json and youtube_client_secrets.json.
+
+VOR_FORMAT=short uploads the vertical Short. VOR_BRAND=scisaa uploads the
+SCISAA-branded Short (MM-DD-SCISAA-SHORT.mp4) to the SCISAA channel, using
+its own token (youtube_token_scisaa.json / YT_TOKEN_JSON_SCISAA) — never the
+@StepTwelveSAA one.
 """
 
 import sys
@@ -30,9 +35,19 @@ OUTPUT_DIR = DAILY_DIR / "output"
 IS_SHORT = os.environ.get("VOR_FORMAT", "") == "short"
 LANG_SUFFIX = "-es" if LANG == "es" else ""
 
+# VOR_BRAND=scisaa: SCISAA-branded Short to the SCISAA channel
+BRAND = os.environ.get("VOR_BRAND", "vor")
+if BRAND not in ("vor", "scisaa"):
+    print(f"❌ Unknown VOR_BRAND: {BRAND}")
+    sys.exit(1)
+if BRAND == "scisaa" and not IS_SHORT:
+    print("❌ VOR_BRAND=scisaa is only supported with VOR_FORMAT=short")
+    sys.exit(1)
+BRAND_TAG = "-SCISAA" if BRAND == "scisaa" else ""
+
 # File paths
 if IS_SHORT:
-    VIDEO_FILE     = OUTPUT_DIR / f"{MMDD}{LANG_SUFFIX}-SHORT.mp4"
+    VIDEO_FILE     = OUTPUT_DIR / f"{MMDD}{LANG_SUFFIX}{BRAND_TAG}-SHORT.mp4"
     THUMBNAIL_FILE = None   # the API can't set custom thumbnails on Shorts
 elif LANG == "es":
     VIDEO_FILE     = OUTPUT_DIR / f"{MMDD}-es-FINAL.mp4"
@@ -41,7 +56,9 @@ else:
     VIDEO_FILE     = OUTPUT_DIR / f"{MMDD}-FINAL.mp4"
     THUMBNAIL_FILE = OUTPUT_DIR / f"{MMDD}-titlecard.png"
 
-TOKEN_FILE          = DAILY_DIR / "youtube_token.json"
+TOKEN_FILE          = DAILY_DIR / ("youtube_token_scisaa.json" if BRAND == "scisaa"
+                                   else "youtube_token.json")
+TOKEN_ENV           = "YT_TOKEN_JSON_SCISAA" if BRAND == "scisaa" else "YT_TOKEN_JSON"
 CLIENT_SECRETS_FILE = DAILY_DIR / "youtube_client_secrets.json"
 
 # ── Validate files exist ──────────────────────────────────────
@@ -108,6 +125,33 @@ if IS_SHORT:
     playlist_id = os.environ.get(
         "YT_PLAYLIST_ID_SHORTS_ES" if LANG == "es" else "YT_PLAYLIST_ID_SHORTS", "")
 
+# ── SCISAA channel metadata ───────────────────────────────────
+if BRAND == "scisaa":
+    if LANG == "es":
+        description = f"""#Shorts
+Meditación Diaria de Voces de Recuperación para el {date_str}, compartida por el Intergrupo del Sur de California de Sexoadictos Anónimos (SCISAA).
+
+Voces de Recuperación es un lector diario publicado por Sexoadictos Anónimos® (SAA).
+
+📍 Reuniones en el Sur de California: https://scisaa.org
+🌐 SAA en todo el mundo: https://saa-recovery.org
+🤝 Encuentra una reunión: https://saa-meetings.org
+
+#recuperacion #SAA #meditacion #VocesDeRecuperacion #SurDeCalifornia"""
+    else:
+        description = f"""#Shorts
+Daily Meditation from Voices of Recovery for {date_str}, shared by the Southern California Intergroup of Sex Addicts Anonymous (SCISAA).
+
+Voices of Recovery is a daily reader published by Sex Addicts Anonymous® (SAA).
+
+📍 SAA meetings in Southern California: https://scisaa.org
+🌐 SAA worldwide: https://saa-recovery.org
+🤝 Find a meeting anywhere: https://saa-meetings.org
+
+#recovery #SAA #dailymeditation #VoicesOfRecovery #SouthernCalifornia #LosAngeles"""
+        tags = tags + ["SCISAA", "Southern California", "Los Angeles"]
+    playlist_id = os.environ.get("YT_PLAYLIST_ID_SCISAA", "")
+
 PRIVACY = os.environ.get("YT_PRIVACY_SHORTS", "public") if IS_SHORT else "public"
 
 # ── Google API auth ───────────────────────────────────────────
@@ -131,14 +175,14 @@ def get_credentials():
         creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
 
     # Try env var (GitHub Actions)
-    if not creds and os.environ.get("YT_TOKEN_JSON"):
-        token_data = json.loads(os.environ["YT_TOKEN_JSON"])
+    if not creds and os.environ.get(TOKEN_ENV):
+        token_data = json.loads(os.environ[TOKEN_ENV])
         with open(TOKEN_FILE, "w") as f:
             json.dump(token_data, f)
         creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
 
     if not creds:
-        print("❌ No YouTube credentials found.")
+        print(f"❌ No YouTube credentials found ({TOKEN_FILE.name} / {TOKEN_ENV}).")
         print("   Run: python3 get_youtube_token.py")
         sys.exit(1)
 
@@ -151,7 +195,7 @@ def get_credentials():
     return creds
 
 # ── Upload ────────────────────────────────────────────────────
-print(f"📤 Uploading: {VIDEO_FILE.name}")
+print(f"📤 Uploading: {VIDEO_FILE.name}" + ("  → SCISAA channel" if BRAND == "scisaa" else ""))
 print(f"   Title:     {title}")
 print(f"   Playlist:  {playlist_id or '(none)'}")
 print()

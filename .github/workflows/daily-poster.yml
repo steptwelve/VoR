@@ -2,7 +2,14 @@ name: Daily Meditation Poster
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VoR Daily Meditation — GitHub Actions Workflow
-# Version: 2026-10-13.16
+# Version: 2026-10-13.17
+#
+# Changes in .17 (2026-10-13):
+# - SCISAA channel (repo variable ENABLE_SCISAA == 'true'): Step 4b also
+#   builds a SCISAA-branded Short (same narration/captions, LA-skyline end
+#   card pointing to scisaa.org) and uploads it to the SCISAA YouTube
+#   channel with its own token (secret YT_TOKEN_JSON_SCISAA). Optional repo
+#   variables: YT_PLAYLIST_ID_SCISAA, YT_PRIVACY_SCISAA (default public).
 #
 # Changes in .16 (2026-10-13):
 # - Optional X native-video posting (repo variable X_VIDEO == 'true'):
@@ -307,6 +314,8 @@ jobs:
           MMDD=$(date +'%m-%d')
           YEAR=$(date +'%Y')
           BACKGROUND_VIDEO=/tmp/background.mp4 python build_short.py $MMDD $YEAR
+        env:
+          SHORT_BRANDS: ${{ vars.ENABLE_SCISAA == 'true' && 'vor,scisaa' || 'vor' }}
 
       - name: Upload English Short to YouTube
         id: upload_short_en
@@ -333,6 +342,42 @@ jobs:
             if [ "${{ steps.build_short_en.outcome }}" == "success" ]; then STAGE="upload"; fi
             TITLE="VoR FAILURE: English Short ${STAGE}"
             MSG="English Short ${STAGE} failed on $(date +'%m-%d'). Check GitHub Actions logs."
+          fi
+          curl -s \
+            --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
+            --form-string "user=${{ secrets.PUSHOVER_USER_KEY }}" \
+            --form-string "title=${TITLE}" \
+            --form-string "message=${MSG}" \
+            --form-string "priority=0" \
+            https://api.pushover.net/1/messages.json
+
+      # ── Step 4c: SCISAA-branded Short to the SCISAA channel ─────────────────
+      # Built by Step 4b when ENABLE_SCISAA == 'true'. Uses its own token
+      # (YT_TOKEN_JSON_SCISAA) so it can never post to @StepTwelveSAA.
+      - name: Upload SCISAA Short to YouTube
+        id: upload_short_scisaa
+        if: vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SHORTS == 'true' && vars.ENABLE_SCISAA == 'true' && steps.build_short_en.outcome == 'success'
+        continue-on-error: true
+        env:
+          YT_TOKEN_JSON_SCISAA: ${{ secrets.YT_TOKEN_JSON_SCISAA }}
+          VOR_FORMAT: short
+          VOR_BRAND: scisaa
+          YT_PLAYLIST_ID_SCISAA: ${{ vars.YT_PLAYLIST_ID_SCISAA }}
+          YT_PRIVACY_SHORTS: ${{ vars.YT_PRIVACY_SCISAA || 'public' }}
+        run: |
+          python upload_youtube.py
+
+      - name: Notify — SCISAA Short skipped or failed
+        if: |
+          vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SHORTS == 'true' && vars.ENABLE_SCISAA == 'true' &&
+          steps.upload_short_scisaa.outcome == 'failure'
+        run: |
+          if [ -f /tmp/short_warning.txt ]; then
+            TITLE="VoR Warning: SCISAA Short skipped"
+            MSG=$(cat /tmp/short_warning.txt)
+          else
+            TITLE="VoR FAILURE: SCISAA Short upload"
+            MSG="SCISAA Short upload failed on $(date +'%m-%d'). Check GitHub Actions logs (token: YT_TOKEN_JSON_SCISAA)."
           fi
           curl -s \
             --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
@@ -514,6 +559,7 @@ jobs:
           steps.upload_en.outcome != 'failure' &&
           steps.build_short_en.outcome != 'failure' &&
           steps.upload_short_en.outcome != 'failure' &&
+          steps.upload_short_scisaa.outcome != 'failure' &&
           steps.x_video.outcome != 'failure' &&
           steps.translate_es.outcome != 'failure' &&
           steps.build_es.outcome != 'failure' &&
