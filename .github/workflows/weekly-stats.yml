@@ -1,0 +1,57 @@
+name: Weekly Reach Summary
+
+# Sundays ~9 AM Pacific (16:00 UTC). Sends a silent Pushover with the week's
+# YouTube views (Shorts / English / Spanish), subscribers and Bluesky
+# followers, then commits the snapshot used for next week's comparison.
+on:
+  schedule:
+    - cron: '0 16 * * 0'
+  workflow_dispatch:
+
+jobs:
+  weekly-stats:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build and send weekly summary
+        env:
+          YT_TOKEN_JSON: ${{ secrets.YT_TOKEN_JSON }}
+          PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+          PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+        run: python weekly_stats.py
+
+      - name: Commit snapshot
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add stats/youtube-snapshot.json
+          if git diff --staged --quiet; then exit 0; fi
+          git commit -m "Weekly stats snapshot $(date +'%Y-%m-%d')"
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push origin main && exit 0
+            sleep 10
+          done
+          exit 1
+
+      - name: Notify — weekly summary failed
+        if: failure()
+        run: |
+          curl -s \
+            --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
+            --form-string "user=${{ secrets.PUSHOVER_USER_KEY }}" \
+            --form-string "title=VoR Warning: weekly summary failed" \
+            --form-string "message=Weekly reach summary failed. Check GitHub Actions logs." \
+            --form-string "priority=0" \
+            https://api.pushover.net/1/messages.json
