@@ -2,7 +2,13 @@ name: Daily Meditation Poster
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VoR Daily Meditation — GitHub Actions Workflow
-# Version: 2026-10-13.17
+# Version: 2026-10-13.18
+#
+# Changes in .18 (2026-10-13):
+# - Spanish SCISAA Short (Step 5c): when ENABLE_SCISAA and ENABLE_SPANISH
+#   are on, the Spanish translation is also built as a SCISAA-branded Short
+#   (Spanish narration, captions and end card) and uploaded to the SCISAA
+#   channel. Optional repo variable YT_PLAYLIST_ID_SCISAA_ES.
 #
 # Changes in .17 (2026-10-13):
 # - SCISAA channel (repo variable ENABLE_SCISAA == 'true'): Step 4b also
@@ -444,6 +450,54 @@ jobs:
             --form-string "priority=0" \
             https://api.pushover.net/1/messages.json
 
+      # ── Step 5c: Spanish SCISAA Short ────────────────────────────────────────
+      - name: Build Spanish SCISAA Short
+        id: build_short_scisaa_es
+        if: vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SHORTS == 'true' && vars.ENABLE_SCISAA == 'true' && steps.translate_es.outcome == 'success'
+        continue-on-error: true
+        env:
+          VOR_LANG: es
+          SHORT_BRANDS: scisaa
+        run: |
+          rm -f /tmp/short_warning.txt
+          BACKGROUND_VIDEO=/tmp/background.mp4 python build_short.py $(date +'%m-%d') $(date +'%Y')
+
+      - name: Upload Spanish SCISAA Short to YouTube
+        id: upload_short_scisaa_es
+        if: vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SHORTS == 'true' && vars.ENABLE_SCISAA == 'true' && steps.build_short_scisaa_es.outcome == 'success'
+        continue-on-error: true
+        env:
+          YT_TOKEN_JSON_SCISAA: ${{ secrets.YT_TOKEN_JSON_SCISAA }}
+          VOR_FORMAT: short
+          VOR_BRAND: scisaa
+          VOR_LANG: es
+          YT_PLAYLIST_ID_SCISAA_ES: ${{ vars.YT_PLAYLIST_ID_SCISAA_ES }}
+          YT_PRIVACY_SHORTS: ${{ vars.YT_PRIVACY_SCISAA || 'public' }}
+        run: |
+          python upload_youtube.py
+
+      - name: Notify — Spanish SCISAA Short skipped or failed
+        if: |
+          vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SHORTS == 'true' && vars.ENABLE_SCISAA == 'true' &&
+          (steps.build_short_scisaa_es.outcome == 'failure' || steps.upload_short_scisaa_es.outcome == 'failure')
+        run: |
+          if [ -f /tmp/short_warning.txt ]; then
+            TITLE="VoR Warning: Spanish SCISAA Short skipped"
+            MSG=$(cat /tmp/short_warning.txt)
+          else
+            STAGE="build"
+            if [ "${{ steps.build_short_scisaa_es.outcome }}" == "success" ]; then STAGE="upload"; fi
+            TITLE="VoR FAILURE: Spanish SCISAA Short ${STAGE}"
+            MSG="Spanish SCISAA Short ${STAGE} failed on $(date +'%m-%d'). Check GitHub Actions logs."
+          fi
+          curl -s \
+            --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
+            --form-string "user=${{ secrets.PUSHOVER_USER_KEY }}" \
+            --form-string "title=${TITLE}" \
+            --form-string "message=${MSG}" \
+            --form-string "priority=0" \
+            https://api.pushover.net/1/messages.json
+
       # ── Step 5b: X post with the Short as native video ───────────────────────
       # Only when repo variable X_VIDEO == 'true' (Step 1 then defers X).
       # Posts the Short if it exists and is <= 2:20 (X's non-Premium limit);
@@ -560,6 +614,8 @@ jobs:
           steps.build_short_en.outcome != 'failure' &&
           steps.upload_short_en.outcome != 'failure' &&
           steps.upload_short_scisaa.outcome != 'failure' &&
+          steps.build_short_scisaa_es.outcome != 'failure' &&
+          steps.upload_short_scisaa_es.outcome != 'failure' &&
           steps.x_video.outcome != 'failure' &&
           steps.translate_es.outcome != 'failure' &&
           steps.build_es.outcome != 'failure' &&

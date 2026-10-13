@@ -126,31 +126,45 @@ if IS_SHORT:
         "YT_PLAYLIST_ID_SHORTS_ES" if LANG == "es" else "YT_PLAYLIST_ID_SHORTS", "")
 
 # ── SCISAA channel metadata ───────────────────────────────────
+# scisaa.org links carry UTM tags so Google Analytics on scisaa.org (Site Kit)
+# shows visits that came from these videos (Acquisition → Traffic acquisition,
+# campaign "daily_meditation").
 if BRAND == "scisaa":
+    SCISAA_URL = ("https://scisaa.org/?utm_source=youtube&utm_medium=shorts"
+                  f"&utm_campaign=daily_meditation&utm_content={'es' if LANG == 'es' else 'en'}")
     if LANG == "es":
+        MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+                 "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+        try:
+            fecha = f"{date_obj.day} de {MESES[date_obj.month - 1]} de {date_obj.year}"
+        except Exception:
+            fecha = date_str
+        title = f"Voces de Recuperación — {fecha} #Shorts"
         description = f"""#Shorts
-Meditación Diaria de Voces de Recuperación para el {date_str}, compartida por el Intergrupo del Sur de California de Sexoadictos Anónimos (SCISAA).
+Meditación Diaria de Voces de Recuperación para el {fecha}, compartida por el Intergrupo del Sur de California de Sexoadictos Anónimos (SCISAA).
 
 Voces de Recuperación es un lector diario publicado por Sexoadictos Anónimos® (SAA).
 
-📍 Reuniones en el Sur de California: https://scisaa.org
+📍 Reuniones en el Sur de California: {SCISAA_URL}
 🌐 SAA en todo el mundo: https://saa-recovery.org
 🤝 Encuentra una reunión: https://saa-meetings.org
 
 #recuperacion #SAA #meditacion #VocesDeRecuperacion #SurDeCalifornia"""
+        tags = tags + ["SCISAA", "Sur de California", "Los Ángeles"]
+        playlist_id = os.environ.get("YT_PLAYLIST_ID_SCISAA_ES", "")
     else:
         description = f"""#Shorts
 Daily Meditation from Voices of Recovery for {date_str}, shared by the Southern California Intergroup of Sex Addicts Anonymous (SCISAA).
 
 Voices of Recovery is a daily reader published by Sex Addicts Anonymous® (SAA).
 
-📍 SAA meetings in Southern California: https://scisaa.org
+📍 SAA meetings in Southern California: {SCISAA_URL}
 🌐 SAA worldwide: https://saa-recovery.org
 🤝 Find a meeting anywhere: https://saa-meetings.org
 
 #recovery #SAA #dailymeditation #VoicesOfRecovery #SouthernCalifornia #LosAngeles"""
         tags = tags + ["SCISAA", "Southern California", "Los Angeles"]
-    playlist_id = os.environ.get("YT_PLAYLIST_ID_SCISAA", "")
+        playlist_id = os.environ.get("YT_PLAYLIST_ID_SCISAA", "")
 
 PRIVACY = os.environ.get("YT_PRIVACY_SHORTS", "public") if IS_SHORT else "public"
 
