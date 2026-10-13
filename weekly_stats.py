@@ -17,6 +17,7 @@ Usage:
 
 import json
 import os
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -104,6 +105,32 @@ def bluesky_followers():
         return None
 
 
+def advanced_links_status(videos):
+    """Proxy for YouTube 'Advanced features': are external links in our video
+    descriptions clickable? The API doesn't expose feature eligibility, but the
+    public watch page lists which description text is a link. Returns True /
+    False, or None if YouTube served a consent/bot page instead."""
+    regular = sorted((v["published"], vid) for vid, v in videos.items()
+                     if kind(v["title"]) == "english")
+    if not regular:
+        return None
+    vid = regular[-1][1]
+    try:
+        html = requests.get(
+            f"https://www.youtube.com/watch?v={vid}", timeout=30,
+            headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                                   "AppleWebKit/537.36 (KHTML, like Gecko) "
+                                   "Chrome/141.0 Safari/537.36",
+                     "Accept-Language": "en-US,en;q=0.9"},
+            cookies={"CONSENT": "YES+", "SOCS": "CAI"}).text
+    except Exception:
+        return None
+    if '"attributedDescription"' not in html:
+        return None
+    return bool(re.search(r'urlEndpoint":\{"url":"[^"]*saa-(recovery|meetings)'
+                          r'|q=https%3A%2F%2F(www\.)?saa-(recovery|meetings)', html))
+
+
 def summarize(now, prev):
     pv = (prev or {}).get("videos", {})
     groups = {"shorts": [0, 0], "english": [0, 0], "spanish": [0, 0]}  # [views gained, count]
@@ -131,6 +158,15 @@ def summarize(now, prev):
     if bf is not None:
         lines.append(f"Bluesky followers: {bf}" +
                      (f" ({bf - bf_prev:+d})" if bf_prev is not None else ""))
+    adv, adv_prev = now.get("advanced_links"), (prev or {}).get("advanced_links")
+    if adv is True and adv_prev is not True:
+        lines.append("✅ Advanced features ON: description links are now clickable")
+    elif adv is True:
+        lines.append("Advanced features: on")
+    elif adv is False:
+        lines.append("Advanced features: not yet (description links plain text)")
+    else:
+        lines.append("Advanced features: couldn't check")
     if best and best[0] > 0:
         lines.append(f"Top: {best[1]} (+{best[0]})")
     return "\n".join(lines)
@@ -149,6 +185,7 @@ def main():
     prev = json.loads(SNAPSHOT.read_text()) if SNAPSHOT.exists() else None
     now = fetch(youtube())
     now["bluesky_followers"] = bluesky_followers()
+    now["advanced_links"] = advanced_links_status(now["videos"])
     msg = summarize(now, prev)
     print(msg)
     if DRY_RUN:
