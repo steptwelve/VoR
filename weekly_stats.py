@@ -5,7 +5,9 @@ weekly_stats.py — Weekly reach summary for @StepTwelveSAA, sent by Pushover.
 Compares this week's YouTube numbers with last week's snapshot
 (stats/youtube-snapshot.json, committed by the workflow), so it reports
 views *gained this week*, split into Shorts / English / Spanish videos,
-plus subscriber and Bluesky follower changes.
+plus subscriber and Bluesky follower changes. Also follows other channels'
+public numbers (WATCH below: SCISAA and the ISO's @isoofsaa), so we can see
+how the Shorts do there; only public stats are read.
 
 Uses the same YouTube token as the uploader (YT_TOKEN_JSON or
 youtube_token.json); costs a handful of API quota units per run.
@@ -31,6 +33,8 @@ DAILY_DIR = Path(__file__).resolve().parent
 TOKEN_FILE = DAILY_DIR / "youtube_token.json"
 SNAPSHOT = DAILY_DIR / "stats" / "youtube-snapshot.json"
 LOOKBACK_DAYS = 120          # videos older than this rarely move; skip them
+WATCH = {"scisaa": "SCISAA", "isoofsaa": "ISO"}   # handle -> label (public stats)
+WATCH_LOOKBACK_DAYS = 35     # recent videos only, to keep the snapshot small
 BSKY_HANDLE = "ocisaa.org"
 DRY_RUN = "--dry-run" in sys.argv
 SCOPES = ["https://www.googleapis.com/auth/youtube.upload",
@@ -57,10 +61,11 @@ def kind(title: str) -> str:
     return "english"
 
 
-def fetch(yt):
-    ch = yt.channels().list(part="statistics,contentDetails", mine=True).execute()["items"][0]
+def fetch(yt, handle=None, lookback=LOOKBACK_DAYS):
+    sel = {"forHandle": handle} if handle else {"mine": True}
+    ch = yt.channels().list(part="statistics,contentDetails", **sel).execute()["items"][0]
     uploads = ch["contentDetails"]["relatedPlaylists"]["uploads"]
-    cutoff = datetime.now(timezone.utc) - timedelta(days=LOOKBACK_DAYS)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=lookback)
 
     ids, page = [], None
     while True:
@@ -94,6 +99,41 @@ def fetch(yt):
         "channel_views": int(ch["statistics"].get("viewCount", 0)),
         "videos": videos,
     }
+
+
+def fetch_watched(yt):
+    out = {}
+    for handle in WATCH:
+        try:
+            out[handle] = fetch(yt, handle=handle, lookback=WATCH_LOOKBACK_DAYS)
+        except Exception as e:
+            print(f"(couldn't read @{handle}: {e})")
+    return out
+
+
+def summarize_watched(now, prev):
+    lines = []
+    for handle, label in WATCH.items():
+        w = now.get("watch", {}).get(handle)
+        if not w:
+            continue
+        p = (prev or {}).get("watch", {}).get(handle)
+        line = f"{label}: {w['subscribers']} subs"
+        if p:
+            line += f" ({w['subscribers'] - p['subscribers']:+d})"
+            line += f", +{w['channel_views'] - p['channel_views']} views"
+            pv = p.get("videos", {})
+            shorts = {vid: v for vid, v in w["videos"].items() if kind(v["title"]) == "shorts"}
+            if shorts:
+                gained = sum(v["views"] - pv.get(vid, {}).get("views", 0)
+                             for vid, v in shorts.items())
+                line += f" (Shorts +{gained})"
+            if shorts and not any(kind(v["title"]) == "shorts" for v in pv.values()):
+                lines.append(f"🎉 {label} posted its first Short!")
+        else:
+            line += f", {w['channel_views']} lifetime views (baseline)"
+        lines.append(line)
+    return lines
 
 
 def bluesky_followers():
@@ -169,6 +209,7 @@ def summarize(now, prev):
         lines.append("Advanced features: couldn't check")
     if best and best[0] > 0:
         lines.append(f"Top: {best[1]} (+{best[0]})")
+    lines += summarize_watched(now, prev)
     return "\n".join(lines)
 
 
@@ -183,7 +224,9 @@ def pushover(title, msg):
 
 def main():
     prev = json.loads(SNAPSHOT.read_text()) if SNAPSHOT.exists() else None
-    now = fetch(youtube())
+    yt = youtube()
+    now = fetch(yt)
+    now["watch"] = fetch_watched(yt)
     now["bluesky_followers"] = bluesky_followers()
     now["advanced_links"] = advanced_links_status(now["videos"])
     msg = summarize(now, prev)
