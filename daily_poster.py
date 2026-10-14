@@ -1,8 +1,18 @@
 """
 daily_poster.py
 
-Version: 2026-08-05.15
-Generated: 2026-08-05
+Version: 2026-10-14.16
+Generated: 2026-10-14
+
+Changes in the .16 version:
+- Post links now carry UTM tags so ocisaa.org's Google Analytics credits
+  visits to the right platform (phone apps don't send a referrer, so these
+  visits used to show up as "Direct"). New Bitly links:
+    bit.ly/step12-bsky -> ocisaa.org/step12/?utm_source=bluesky&...
+    bit.ly/step12-x    -> ocisaa.org/step12/?utm_source=x&...
+  (both with utm_medium=social&utm_campaign=daily_meditation). The old
+  links (step12-b / step12-t) still work; their Bitly counts are the
+  pre-2026-10-14 baseline.
 
 Changes in the .15 version:
 - Added a 7-day expiration to imgbb uploads (expiration=604800 seconds) in
@@ -234,12 +244,12 @@ BSKY_HASHTAGS = [
     "#recoveryposse",
     "#sobriety",
 ]
-BSKY_URL = "https://bit.ly/step12-b"
+BSKY_URL = "https://bit.ly/step12-bsky"
 BSKY_YT_URL = "https://youtube.com/@StepTwelveSAA"
 
 # X/Twitter uses same hashtags but different URL (no YouTube link — character budget)
 X_HASHTAGS = BSKY_HASHTAGS
-X_URL = "http://bit.ly/step12-t"
+X_URL = "https://bit.ly/step12-x"
 
 # Buffer channel ID for the 'ocisaa' X/Twitter profile (Buffer org: OCISAA).
 # X posting now goes through Buffer's API instead of tweepy/X API directly —
