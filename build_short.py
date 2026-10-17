@@ -32,6 +32,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -176,12 +177,25 @@ def pick_voice():
     return voices[idx % len(voices)]
 
 
+TTS_RETRY_DELAYS = (30, 60, 120)  # seconds between attempts
+
+
 def tts(text_file, voice, mp3, srt=None):
+    """edge-tts with backoff: Microsoft's endpoint intermittently returns
+    HTTP 429 to GitHub runner IPs and clears within seconds to minutes."""
     cmd = [sys.executable, "-m", "edge_tts", "--voice", voice,
            "--file", str(text_file), "--write-media", str(mp3)]
     if srt:
         cmd += ["--write-subtitles", str(srt)]
-    run(cmd)
+    for attempt, delay in enumerate(TTS_RETRY_DELAYS, start=1):
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode == 0:
+            return r
+        tail = (r.stderr.strip().splitlines() or ["(no stderr)"])[-1]
+        log(f"⚠️  edge-tts failed (attempt {attempt}): {tail[:200]}")
+        log(f"   retrying in {delay}s...")
+        time.sleep(delay)
+    return run(cmd)  # final attempt; exits with full stderr on failure
 
 
 def parse_srt(path):

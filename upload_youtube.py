@@ -173,6 +173,7 @@ from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+from googleapiclient.errors import HttpError
 
 SCOPES = [
     "https://www.googleapis.com/auth/youtube.upload",
@@ -262,11 +263,21 @@ if THUMBNAIL_FILE:
         thumb_path = tmp.name
         print(f"   (Compressed from {thumb_size//1024}KB)")
 
-    youtube.thumbnails().set(
-        videoId=video_id,
-        media_body=MediaFileUpload(thumb_path, mimetype="image/jpeg")
-    ).execute()
-    print("   ✅ Thumbnail set")
+    # A thumbnail failure must not stop the playlist step or fail the run:
+    # the video is already live. Channels without YouTube phone
+    # verification get 403 "doesn't have permissions to upload and set
+    # custom video thumbnails" (fix: verify at youtube.com/verify).
+    try:
+        youtube.thumbnails().set(
+            videoId=video_id,
+            media_body=MediaFileUpload(thumb_path, mimetype="image/jpeg")
+        ).execute()
+        print("   ✅ Thumbnail set")
+    except HttpError as e:
+        reason = getattr(e, "reason", None) or str(e)
+        print(f"   ⚠️  Thumbnail not set ({e.resp.status}): {reason}")
+        print(f"::warning title=YouTube thumbnail not set::{reason} "
+              "— video uploaded; if 403, verify the channel at youtube.com/verify")
 
 # Add to playlist
 if playlist_id:

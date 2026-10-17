@@ -76,6 +76,24 @@ else
     EDGE_TTS="edge-tts"
 fi
 
+# Retry edge-tts with backoff. Microsoft's endpoint intermittently returns
+# HTTP 429 to GitHub runner IPs (seen 2026-10-16/17); it clears within
+# seconds to minutes, so a few spaced retries rescue the day.
+tts_retry() {
+    local delays=(0 30 60 120) i
+    for i in "${!delays[@]}"; do
+        if (( i > 0 )); then
+            echo "   ⚠️  edge-tts failed (attempt $i of ${#delays[@]}); retrying in ${delays[$i]}s..."
+            sleep "${delays[$i]}"
+        fi
+        if $EDGE_TTS "$@"; then
+            return 0
+        fi
+    done
+    echo "   ❌ edge-tts failed after ${#delays[@]} attempts"
+    return 1
+}
+
 # Allow BACKGROUND_VIDEO to be passed in (for GitHub Actions)
 # Falls back to local backgrounds/ directory
 if [ -z "$BACKGROUND_VIDEO" ]; then
@@ -241,7 +259,7 @@ PYEOF
 echo "🎤 Step 2: Generating title card narration..."
 echo "Here's the Daily Meditation for ${MONTH_DAY} from Voices of Recovery" \
     > "$WORK_DIR/titlecard-narration.txt"
-$EDGE_TTS --voice "$VOICE" \
+tts_retry --voice "$VOICE" \
     --file "$WORK_DIR/titlecard-narration.txt" \
     --write-media "$WORK_DIR/titlecard-narration.mp3"
 
@@ -264,7 +282,7 @@ echo "🎤 Step 4: Generating meditation narration..."
 ffmpeg -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 0.5 \
     "$WORK_DIR/silence.mp3" 2>/dev/null
 
-$EDGE_TTS --voice "$VOICE" \
+tts_retry --voice "$VOICE" \
     --file "$MEDITATION_TEXT" \
     --write-media "$WORK_DIR/med-raw.mp3"
 
@@ -384,7 +402,7 @@ else
     ENDCARD_NARRATION_FILE="$ENDCARD_NARRATION"
 fi
 
-$EDGE_TTS --voice "$VOICE" \
+tts_retry --voice "$VOICE" \
     --file "$ENDCARD_NARRATION_FILE" \
     --write-media "$WORK_DIR/endcard-narration-raw.mp3"
 
