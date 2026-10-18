@@ -1,8 +1,9 @@
 {
- "bluesky_followers": 82,
- "channel_views": 1242,
+ "advanced_links": false,
+ "bluesky_followers": 83,
+ "channel_views": 1312,
  "subscribers": 10,
- "taken": "2026-10-13T18:05:13+00:00",
+ "taken": "2026-10-18T18:22:58+00:00",
  "videos": {
   "-OPaFGeqll4": {
    "likes": 0,
@@ -98,7 +99,7 @@
    "likes": 0,
    "published": "2026-10-13T16:42:14Z",
    "title": "Voices of Recovery \u2014 October 13, 2026",
-   "views": 0
+   "views": 2
   },
   "1yD1vVxdQhA": {
    "likes": 0,
@@ -124,29 +125,17 @@
    "title": "Voces de Recuperaci\u00f3n \u2014 October 5, 2026",
    "views": 3
   },
-  "2YAJ_PVCoV8": {
-   "likes": 0,
-   "published": "2026-06-17T12:49:39Z",
-   "title": "Voices of Recovery \u2014 June 17, 2026",
-   "views": 1
-  },
   "2fzBrYT9lGg": {
    "likes": 0,
    "published": "2026-09-29T15:19:24Z",
    "title": "Voices of Recovery \u2014 September 29, 2026",
-   "views": 4
+   "views": 6
   },
   "2jA4ifnXCg8": {
    "likes": 0,
    "published": "2026-07-02T11:35:58Z",
    "title": "Voces de Recuperaci\u00f3n \u2014 July 2, 2026",
    "views": 1
-  },
-  "2ksauoSoREQ": {
-   "likes": 0,
-   "published": "2026-06-19T12:45:27Z",
-   "title": "Voices of Recovery \u2014 June 19, 2026",
-   "views": 2
   },
   "2vXVc_D3PBE": {
    "likes": 0,
@@ -176,7 +165,7 @@
    "likes": 1,
    "published": "2026-07-31T20:20:02Z",
    "title": "Dale S on boundaries, the Three Circles, amends, and forgiveness.",
-   "views": 50
+   "views": 53
   },
   "3tEH5Lj4huo": {
    "likes": 0,
@@ -220,17 +209,23 @@
    "title": "Voces de Recuperaci\u00f3n \u2014 June 28, 2026",
    "views": 0
   },
+  "51K4AjakD9U": {
+   "likes": 0,
+   "published": "2026-10-18T12:57:04Z",
+   "title": "Voices of Recovery \u2014 October 18, 2026",
+   "views": 0
+  },
   "6MGyRij1-_s": {
    "likes": 0,
    "published": "2026-08-05T11:19:36Z",
    "title": "Voces de Recuperaci\u00f3n \u2014 August 5, 2026",
    "views": 0
   },
-  "6muoa3crxL4": {
+  "7-TQbfeGDcE": {
    "likes": 0,
-   "published": "2026-06-16T13:33:07Z",
-   "title": "Voces de Recuperaci\u00f3n \u2014 June 16, 2026",
-   "views": 1
+   "published": "2026-10-17T12:40:05Z",
+   "title": "Voces de Recuperaci\u00f3n \u2014 October 17, 2026",
+   "views": 0
   },
   "72YsQ1LRUyU": {
    "likes": 0,
@@ -254,7 +249,7 @@
    "likes": 0,
    "published": "2026-10-11T15:21:34Z",
    "title": "Voces de Recuperaci\u00f3n \u2014 October 11, 2026",
-   "views": 1
+   "views": 2
   },
   "8xZMu0xQoIo": {
    "likes": 0,
@@ -272,6 +267,12 @@
    "likes": 0,
    "published": "2026-10-09T15:48:48Z",
    "title": "Voces de Recuperaci\u00f3n \u2014 October 9, 2026",
+   "views": 1
+  },
+  "9KxMVFJpPUU": {
+   "likes": 0,
+   "published": "2026-10-15T13:53:39Z",
+   "title": "Voices of Recovery \u2014 October 15, 2026",
    "views": 1
   },
   "9rN6Mbxuvsk": {
@@ -326,13 +327,7 @@
    "likes": 0,
    "published": "2026-10-07T15:59:46Z",
    "title": "Voices of Recovery \u2014 October 7, 2026",
-   "views": 1
-  },
-  "BG2RCPQqg0I": {
-   "likes": 0,
-   "published": "2026-06-20T11:14:04Z",
-   "title": "Voices of Recovery \u2014 June 20, 2026",
-   "views": 3
+   "views": 2
   },
   "BH6oWTu__Q4": {
    "likes": 0,
@@ -370,6 +365,12 @@
    "title": "Voices of Recovery \u2014 July 22, 2026",
    "views": 0
   },
+  "DQbRQNQnul4": {
+   "likes": 0,
+   "published": "2026-10-14T14:28:29Z",
+   "title": "Voces de Recuperaci\u00f3n \u2014 October 14, 2026",
+   "views": 1
+  },
   "DVok19GYvwc": {
    "likes": 0,
    "published": "2026-09-02T13:11:52Z",
@@ -380,13 +381,13 @@
    "likes": 0,
    "published": "2026-09-23T14:07:00Z",
    "title": "Voces de Recuperaci\u00f3n \u2014 September 23, 2026",
-   "views": 5
+   "views": 6
   },
   "Da5b-4FnbJY": {
    "likes": 0,
    "published": "2026-10-09T15:45:30Z",
    "title": "Voices of Recovery \u2014 October 9, 2026",
-   "views": 2
+   "views": 3
   },
   "DcqGdabU758": {
    "likes": 0,
@@ -442,12 +443,6 @@
    "title": "Voices of Recovery \u2014 August 14, 2026",
    "views": 5
   },
-  "G3LFxSVHv7s": {
-   "likes": 0,
-   "published": "2026-06-16T13:29:26Z",
-   "title": "Voices of Recovery \u2014 June 16, 2026",
-   "views": 2
-  },
   "HPc56SVmjVg": {
    "likes": 0,
    "published": "2026-07-29T11:20:50Z",
@@ -459,6 +454,12 @@
    "published": "2026-07-27T12:21:54Z",
    "title": "Voces de Recuperaci\u00f3n \u2014 July 27, 2026",
    "views": 0
+  },
+  "HbsHf7S43O4": {
+   "likes": 0,
+   "published": "2026-10-14T14:24:53Z",
+   "title": "Voices of Recovery \u2014 October 14, 2026 #Shorts",
+   "views": 2
   },
   "HsOGsvuFRU4": {
    "likes": 0,
@@ -476,7 +477,7 @@
    "likes": 0,
    "published": "2026-10-06T15:42:55Z",
    "title": "Voces de Recuperaci\u00f3n \u2014 October 6, 2026",
-   "views": 4
+   "views": 5
   },
   "IQmi6yisQ6s": {
    "likes": 0,
@@ -494,18 +495,12 @@
    "likes": 0,
    "published": "2026-10-13T16:43:44Z",
    "title": "Voces de Recuperaci\u00f3n \u2014 October 13, 2026",
-   "views": 0
+   "views": 5
   },
   "JFHK4unSBdY": {
    "likes": 0,
    "published": "2026-08-10T10:16:26Z",
    "title": "Voces de Recuperaci\u00f3n \u2014 August 10, 2026",
-   "views": 0
-  },
-  "JJYQ0HXMAbI": {
-   "likes": 0,
-   "published": "2026-06-17T12:53:31Z",
-   "title": "Voces de Recuperaci\u00f3n \u2014 June 17, 2026",
    "views": 0
   },
   "JreZpJszDZo": {
@@ -556,6 +551,12 @@
    "title": "Voices of Recovery \u2014 August 16, 2026",
    "views": 2
   },
+  "LH7B4JNxYnk": {
+   "likes": 0,
+   "published": "2026-10-18T13:00:08Z",
+   "title": "Voices of Recovery \u2014 October 18, 2026 #Shorts",
+   "views": 1
+  },
   "LJdZIrM1rjE": {
    "likes": 0,
    "published": "2026-08-22T09:23:03Z",
@@ -592,17 +593,17 @@
    "title": "Voces de Recuperaci\u00f3n \u2014 July 16, 2026",
    "views": 0
   },
-  "MRlfnnFUc7E": {
-   "likes": 0,
-   "published": "2026-06-20T11:17:05Z",
-   "title": "Voces de Recuperaci\u00f3n \u2014 June 20, 2026",
-   "views": 0
-  },
   "MvT4tyn4Fow": {
    "likes": 0,
    "published": "2026-09-28T17:17:47Z",
    "title": "Voices of Recovery \u2014 September 28, 2026",
-   "views": 4
+   "views": 6
+  },
+  "MxkVunR0rFo": {
+   "likes": 0,
+   "published": "2026-10-17T15:48:20Z",
+   "title": "Voices of Recovery \u2014 October 17, 2026 #Shorts",
+   "views": 0
   },
   "ND9piz_8w28": {
    "likes": 0,
@@ -614,12 +615,6 @@
    "likes": 0,
    "published": "2026-07-01T12:02:46Z",
    "title": "Voces de Recuperaci\u00f3n \u2014 July 1, 2026",
-   "views": 0
-  },
-  "Nvlxa62GSI0": {
-   "likes": 0,
-   "published": "2026-06-19T12:48:42Z",
-   "title": "Voces de Recuperaci\u00f3n \u2014 June 19, 2026",
    "views": 0
   },
   "OFHhR60le6o": {
@@ -778,6 +773,12 @@
    "title": "Voces de Recuperaci\u00f3n \u2014 September 11, 2026",
    "views": 0
   },
+  "Vr7dkah67F4": {
+   "likes": 0,
+   "published": "2026-10-15T13:59:18Z",
+   "title": "Voices of Recovery \u2014 October 15, 2026 #Shorts",
+   "views": 0
+  },
   "VzrihlrXhFo": {
    "likes": 0,
    "published": "2026-07-25T10:25:18Z",
@@ -802,12 +803,6 @@
    "title": "Voces de Recuperaci\u00f3n \u2014 August 15, 2026",
    "views": 0
   },
-  "WXrEBLahK-8": {
-   "likes": 0,
-   "published": "2026-06-18T12:22:24Z",
-   "title": "Voices of Recovery \u2014 June 18, 2026",
-   "views": 0
-  },
   "WfgztBc6fc4": {
    "likes": 0,
    "published": "2026-09-09T13:21:19Z",
@@ -824,7 +819,7 @@
    "likes": 0,
    "published": "2026-10-07T16:02:15Z",
    "title": "Voces de Recuperaci\u00f3n \u2014 October 7, 2026",
-   "views": 6
+   "views": 7
   },
   "WxKml-A6upc": {
    "likes": 0,
@@ -891,6 +886,12 @@
    "published": "2026-08-08T09:34:58Z",
    "title": "Voices of Recovery \u2014 August 8, 2026",
    "views": 4
+  },
+  "ZPXZi-uf4GQ": {
+   "likes": 0,
+   "published": "2026-10-18T13:02:54Z",
+   "title": "Voces de Recuperaci\u00f3n \u2014 October 18, 2026",
+   "views": 0
   },
   "ZqKc2PuH61U": {
    "likes": 0,
@@ -962,7 +963,7 @@
    "likes": 0,
    "published": "2026-10-11T15:17:59Z",
    "title": "Voices of Recovery \u2014 October 11, 2026",
-   "views": 6
+   "views": 8
   },
   "buIv5NpInJ4": {
    "likes": 0,
@@ -988,11 +989,29 @@
    "title": "Voces de Recuperaci\u00f3n \u2014 September 26, 2026",
    "views": 3
   },
+  "cdQ2gG7ecuw": {
+   "likes": 0,
+   "published": "2026-10-16T23:02:36Z",
+   "title": "Voices of Recovery \u2014 October 16, 2026",
+   "views": 1
+  },
   "ceIdVBBlNCU": {
    "likes": 0,
    "published": "2026-08-21T09:32:48Z",
    "title": "Voices of Recovery \u2014 August 21, 2026",
    "views": 6
+  },
+  "cfwHdzbLOns": {
+   "likes": 0,
+   "published": "2026-10-16T23:09:14Z",
+   "title": "Voces de Recuperaci\u00f3n \u2014 October 16, 2026",
+   "views": 0
+  },
+  "d78R_nWcX8w": {
+   "likes": 0,
+   "published": "2026-10-16T23:06:47Z",
+   "title": "Voices of Recovery \u2014 October 16, 2026 #Shorts",
+   "views": 2
   },
   "dQ8XKSFWRpQ": {
    "likes": 0,
@@ -1004,13 +1023,13 @@
    "likes": 0,
    "published": "2026-09-22T13:51:58Z",
    "title": "Voices of Recovery \u2014 September 22, 2026",
-   "views": 3
+   "views": 4
   },
   "dWXiEA_iQA4": {
    "likes": 0,
    "published": "2026-10-08T16:04:19Z",
    "title": "Voces de Recuperaci\u00f3n \u2014 October 8, 2026",
-   "views": 8
+   "views": 11
   },
   "daBO-hG4QsM": {
    "likes": 0,
@@ -1022,7 +1041,7 @@
    "likes": 0,
    "published": "2026-10-04T14:35:51Z",
    "title": "Voices of Recovery \u2014 October 4, 2026",
-   "views": 9
+   "views": 10
   },
   "eH9gyKg21P8": {
    "likes": 0,
@@ -1040,7 +1059,7 @@
    "likes": 0,
    "published": "2026-10-05T17:42:16Z",
    "title": "Voices of Recovery \u2014 October 5, 2026",
-   "views": 14
+   "views": 13
   },
   "eSfD9hUqcUM": {
    "likes": 0,
@@ -1058,13 +1077,13 @@
    "likes": 0,
    "published": "2026-10-08T16:02:03Z",
    "title": "Voices of Recovery \u2014 October 8, 2026",
-   "views": 11
+   "views": 12
   },
   "fYk0LdkcXw0": {
    "likes": 0,
    "published": "2026-10-12T22:03:55Z",
    "title": "Voices of Recovery \u2014 October 12, 2026",
-   "views": 0
+   "views": 3
   },
   "fbX_c4BzONs": {
    "likes": 0,
@@ -1088,7 +1107,7 @@
    "likes": 0,
    "published": "2026-10-01T15:57:39Z",
    "title": "Voices of Recovery \u2014 October 1, 2026",
-   "views": 22
+   "views": 24
   },
   "hQLnC0EpiEQ": {
    "likes": 0,
@@ -1100,7 +1119,7 @@
    "likes": 0,
    "published": "2026-10-06T15:40:12Z",
    "title": "Voices of Recovery \u2014 October 6, 2026",
-   "views": 5
+   "views": 6
   },
   "hl5ZIA15aPQ": {
    "likes": 0,
@@ -1118,19 +1137,13 @@
    "likes": 0,
    "published": "2026-09-15T14:06:27Z",
    "title": "Voices of Recovery \u2014 September 15, 2026",
-   "views": 4
+   "views": 5
   },
   "iJA3BKPChq4": {
    "likes": 0,
    "published": "2026-09-27T14:34:19Z",
    "title": "Voces de Recuperaci\u00f3n \u2014 September 27, 2026",
    "views": 5
-  },
-  "iaV_GGqrI20": {
-   "likes": 0,
-   "published": "2026-06-18T12:26:40Z",
-   "title": "Voces de Recuperaci\u00f3n \u2014 June 18, 2026",
-   "views": 0
   },
   "j42iFkYXNAg": {
    "likes": 0,
@@ -1172,7 +1185,7 @@
    "likes": 0,
    "published": "2026-09-26T13:37:23Z",
    "title": "Voices of Recovery \u2014 September 26, 2026",
-   "views": 4
+   "views": 5
   },
   "lYBHNV7a1Hg": {
    "likes": 0,
@@ -1312,6 +1325,12 @@
    "title": "Voces de Recuperaci\u00f3n \u2014 September 9, 2026",
    "views": 4
   },
+  "sDhT0m1L0J0": {
+   "likes": 0,
+   "published": "2026-10-15T14:03:22Z",
+   "title": "Voces de Recuperaci\u00f3n \u2014 October 15, 2026",
+   "views": 3
+  },
   "sdxTe9lokLE": {
    "likes": 0,
    "published": "2026-07-12T10:24:13Z",
@@ -1352,7 +1371,13 @@
    "likes": 0,
    "published": "2026-10-10T15:02:38Z",
    "title": "Voices of Recovery \u2014 October 10, 2026",
-   "views": 2
+   "views": 4
+  },
+  "v7H1VX_L7pY": {
+   "likes": 0,
+   "published": "2026-10-17T15:43:55Z",
+   "title": "Voices of Recovery \u2014 October 17, 2026",
+   "views": 0
   },
   "vV6z0cJFDqM": {
    "likes": 0,
@@ -1388,7 +1413,7 @@
    "likes": 0,
    "published": "2026-09-24T14:00:02Z",
    "title": "Voices of Recovery \u2014 September 24, 2026",
-   "views": 1
+   "views": 4
   },
   "x4cd3_mY3OY": {
    "likes": 0,
@@ -1419,6 +1444,12 @@
    "published": "2026-07-31T11:27:55Z",
    "title": "Voices of Recovery \u2014 July 31, 2026",
    "views": 1
+  },
+  "yXMBjQ_t4a4": {
+   "likes": 0,
+   "published": "2026-10-14T14:19:26Z",
+   "title": "Voices of Recovery \u2014 October 14, 2026",
+   "views": 3
   },
   "yheMrHagrA8": {
    "likes": 0,
@@ -1473,6 +1504,298 @@
    "published": "2026-07-10T11:49:15Z",
    "title": "Voces de Recuperaci\u00f3n \u2014 July 10, 2026",
    "views": 0
+  }
+ },
+ "watch": {
+  "isoofsaa": {
+   "channel_views": 44343,
+   "subscribers": 193,
+   "taken": "2026-10-18T18:22:58+00:00",
+   "videos": {
+    "3eFn3Q38WOs": {
+     "likes": 2,
+     "published": "2026-10-13T07:01:08Z",
+     "title": "Voices of Recovery \u2014 October 13, 2026",
+     "views": 15
+    },
+    "76YXmy_3cVk": {
+     "likes": 2,
+     "published": "2026-10-01T06:56:28Z",
+     "title": "Voices of Recovery \u2014 October 1, 2026",
+     "views": 46
+    },
+    "7xhXItnO-ts": {
+     "likes": 2,
+     "published": "2026-09-22T06:51:45Z",
+     "title": "Voices of Recovery \u2014 September 22, 2026",
+     "views": 38
+    },
+    "89kCdbultUw": {
+     "likes": 3,
+     "published": "2026-09-30T06:54:20Z",
+     "title": "Voices of Recovery \u2014 September 30, 2026",
+     "views": 21
+    },
+    "8u8Tdvu4x8w": {
+     "likes": 3,
+     "published": "2026-09-14T07:02:34Z",
+     "title": "Voices of Recovery \u2014 September 14, 2026",
+     "views": 22
+    },
+    "96z4BrsCSHs": {
+     "likes": 2,
+     "published": "2026-10-11T06:55:57Z",
+     "title": "Voices of Recovery \u2014 October 11, 2026",
+     "views": 21
+    },
+    "9K06SC-NMzI": {
+     "likes": 2,
+     "published": "2026-10-09T06:59:17Z",
+     "title": "Voices of Recovery \u2014 October 9, 2026",
+     "views": 22
+    },
+    "9xRwNBR74bg": {
+     "likes": 1,
+     "published": "2026-10-18T06:48:56Z",
+     "title": "Voices of Recovery \u2014 October 18, 2026",
+     "views": 3
+    },
+    "DqUgPB7_Na4": {
+     "likes": 2,
+     "published": "2026-10-15T06:53:29Z",
+     "title": "Voices of Recovery \u2014 October 15, 2026",
+     "views": 20
+    },
+    "E0DvK0DgT2o": {
+     "likes": 2,
+     "published": "2026-09-18T06:50:35Z",
+     "title": "Voices of Recovery \u2014 September 18, 2026",
+     "views": 17
+    },
+    "IE0fT3v7kbw": {
+     "likes": 1,
+     "published": "2026-09-20T06:47:39Z",
+     "title": "Voices of Recovery \u2014 September 20, 2026",
+     "views": 30
+    },
+    "K2F-hpnU3kg": {
+     "likes": 1,
+     "published": "2026-10-16T06:53:42Z",
+     "title": "Voices of Recovery \u2014 October 16, 2026",
+     "views": 10
+    },
+    "Kq0Sgrh25To": {
+     "likes": 3,
+     "published": "2026-09-21T07:02:47Z",
+     "title": "Voices of Recovery \u2014 September 21, 2026",
+     "views": 32
+    },
+    "LaNeYDNzBPI": {
+     "likes": 1,
+     "published": "2026-09-23T06:52:09Z",
+     "title": "Voices of Recovery \u2014 September 23, 2026",
+     "views": 27
+    },
+    "M0BzrIUNKZo": {
+     "likes": 3,
+     "published": "2026-10-10T06:53:27Z",
+     "title": "Voices of Recovery \u2014 October 10, 2026",
+     "views": 22
+    },
+    "MDNBFZ16hMk": {
+     "likes": 2,
+     "published": "2026-10-07T06:57:20Z",
+     "title": "Voices of Recovery \u2014 October 7, 2026",
+     "views": 31
+    },
+    "Mf3ljrwbY2I": {
+     "likes": 2,
+     "published": "2026-09-26T06:49:10Z",
+     "title": "Voices of Recovery \u2014 September 26, 2026",
+     "views": 19
+    },
+    "N8G1gha-kLw": {
+     "likes": 2,
+     "published": "2026-09-16T06:51:00Z",
+     "title": "Voices of Recovery \u2014 September 16, 2026",
+     "views": 46
+    },
+    "Pq_nGL6VDp4": {
+     "likes": 3,
+     "published": "2026-10-17T06:47:38Z",
+     "title": "Voices of Recovery \u2014 October 17, 2026",
+     "views": 13
+    },
+    "SzatNlHGFjg": {
+     "likes": 3,
+     "published": "2026-09-28T07:08:13Z",
+     "title": "Voices of Recovery \u2014 September 28, 2026",
+     "views": 40
+    },
+    "TaavQ8gBuuQ": {
+     "likes": 3,
+     "published": "2026-09-29T06:55:39Z",
+     "title": "Voices of Recovery \u2014 September 29, 2026",
+     "views": 33
+    },
+    "Z5Ue2mKdiLQ": {
+     "likes": 2,
+     "published": "2026-09-19T06:46:18Z",
+     "title": "Voices of Recovery \u2014 September 19, 2026",
+     "views": 29
+    },
+    "ZKdRUfY7sQU": {
+     "likes": 0,
+     "published": "2026-10-12T23:22:30Z",
+     "title": "Voices of Recovery \u2014 October 12, 2026",
+     "views": 5
+    },
+    "ZpkDIEWHSz4": {
+     "likes": 3,
+     "published": "2026-10-06T06:55:54Z",
+     "title": "Voices of Recovery \u2014 October 6, 2026",
+     "views": 27
+    },
+    "aVCE1UJIPv4": {
+     "likes": 2,
+     "published": "2026-10-14T06:54:12Z",
+     "title": "Voices of Recovery \u2014 October 14, 2026",
+     "views": 21
+    },
+    "cMOt9azgTpc": {
+     "likes": 1,
+     "published": "2026-09-24T06:52:22Z",
+     "title": "Voices of Recovery \u2014 September 24, 2026",
+     "views": 31
+    },
+    "km9Zg4idJvo": {
+     "likes": 2,
+     "published": "2026-10-02T06:55:47Z",
+     "title": "Voices of Recovery \u2014 October 2, 2026",
+     "views": 54
+    },
+    "lfalUk-vBmA": {
+     "likes": 3,
+     "published": "2026-09-25T06:53:16Z",
+     "title": "Voices of Recovery \u2014 September 25, 2026",
+     "views": 46
+    },
+    "oR-_ZhXr7Gk": {
+     "likes": 4,
+     "published": "2026-09-17T06:51:56Z",
+     "title": "Voices of Recovery \u2014 September 17, 2026",
+     "views": 41
+    },
+    "pAtBXgIEvxE": {
+     "likes": 3,
+     "published": "2026-09-27T06:51:16Z",
+     "title": "Voices of Recovery \u2014 September 27, 2026",
+     "views": 31
+    },
+    "uYeNbOlhKgs": {
+     "likes": 1,
+     "published": "2026-10-08T06:58:18Z",
+     "title": "Voices of Recovery \u2014 October 8, 2026",
+     "views": 29
+    },
+    "ue3MWiBIlm4": {
+     "likes": 1,
+     "published": "2026-10-04T08:35:20Z",
+     "title": "Voices of Recovery \u2014 October 4, 2026",
+     "views": 19
+    },
+    "urftxdnB8OA": {
+     "likes": 0,
+     "published": "2026-10-03T06:59:54Z",
+     "title": "Voices of Recovery \u2014 October 3, 2026",
+     "views": 19
+    },
+    "xeAiW_TNj_E": {
+     "likes": 4,
+     "published": "2026-10-05T07:13:48Z",
+     "title": "Voices of Recovery \u2014 October 5, 2026",
+     "views": 29
+    },
+    "yuUuqYwxuFo": {
+     "likes": 1,
+     "published": "2026-09-15T06:52:18Z",
+     "title": "Voices of Recovery \u2014 September 15, 2026",
+     "views": 34
+    }
+   }
+  },
+  "scisaa": {
+   "channel_views": 27,
+   "subscribers": 1,
+   "taken": "2026-10-18T18:22:58+00:00",
+   "videos": {
+    "9ZRTgy42vB8": {
+     "likes": 1,
+     "published": "2026-10-18T13:05:29Z",
+     "title": "Voces de Recuperaci\u00f3n \u2014 18 de octubre de 2026 #Shorts",
+     "views": 1
+    },
+    "CvKuBczPNOk": {
+     "likes": 0,
+     "published": "2026-10-17T12:43:12Z",
+     "title": "Voces de Recuperaci\u00f3n \u2014 17 de octubre de 2026 #Shorts",
+     "views": 0
+    },
+    "F_CHdYQgpzU": {
+     "likes": 0,
+     "published": "2026-10-15T14:07:42Z",
+     "title": "Voces de Recuperaci\u00f3n \u2014 15 de octubre de 2026 #Shorts",
+     "views": 0
+    },
+    "GHysMhnJpQ8": {
+     "likes": 0,
+     "published": "2026-10-14T14:25:07Z",
+     "title": "Voices of Recovery \u2014 October 14, 2026 #Shorts",
+     "views": 0
+    },
+    "OjsoKEzKiVU": {
+     "likes": 0,
+     "published": "2026-10-13T21:18:33Z",
+     "title": "Voices of Recovery \u2014 October 13, 2026 #Shorts",
+     "views": 23
+    },
+    "hbuFBf8tQkg": {
+     "likes": 0,
+     "published": "2026-10-16T23:07:03Z",
+     "title": "Voices of Recovery \u2014 October 16, 2026 #Shorts",
+     "views": 1
+    },
+    "js6Pl_9da1k": {
+     "likes": 0,
+     "published": "2026-10-17T15:48:14Z",
+     "title": "Voices of Recovery \u2014 October 17, 2026 #Shorts",
+     "views": 1
+    },
+    "mS-BOQEHgyM": {
+     "likes": 0,
+     "published": "2026-10-15T13:59:20Z",
+     "title": "Voices of Recovery \u2014 October 15, 2026 #Shorts",
+     "views": 3
+    },
+    "tYIo_5bk0XE": {
+     "likes": 0,
+     "published": "2026-10-14T14:32:56Z",
+     "title": "Voces de Recuperaci\u00f3n \u2014 14 de octubre de 2026 #Shorts",
+     "views": 0
+    },
+    "thvPWgJ1p24": {
+     "likes": 0,
+     "published": "2026-10-18T13:00:27Z",
+     "title": "Voices of Recovery \u2014 October 18, 2026 #Shorts",
+     "views": 0
+    },
+    "vypw0NNpk4o": {
+     "likes": 0,
+     "published": "2026-10-16T23:12:13Z",
+     "title": "Voces de Recuperaci\u00f3n \u2014 16 de octubre de 2026 #Shorts",
+     "views": 0
+    }
+   }
   }
  }
 }
