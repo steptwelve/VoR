@@ -255,46 +255,16 @@ combined.save("$WORK_DIR/titlecard.png")
 print("  ✅ Title card generated")
 PYEOF
 
-# ── Step 2: Title card narration ─────────────────────────────
-echo "🎤 Step 2: Generating title card narration..."
-echo "Here's the Daily Meditation for ${MONTH_DAY} from Voices of Recovery" \
-    > "$WORK_DIR/titlecard-narration.txt"
-tts_retry --voice "$VOICE" \
-    --file "$WORK_DIR/titlecard-narration.txt" \
-    --write-media "$WORK_DIR/titlecard-narration.mp3"
+# ── Step 2: Shared narration (intro + meditation) ────────────
+# One TTS call produces the combined audio used by BOTH the landscape title
+# card segment AND the Short. The two landscape pieces are then derived from
+# it via ffmpeg trim — no separate TTS calls for title card or meditation body.
+echo "🎤 Step 2: Generating shared narration (intro + meditation) — 1 TTS call..."
 
-# ── Step 3: Narrated title card video ────────────────────────
-echo "🎬 Step 3: Creating narrated title card video..."
-ffmpeg -y \
-    -loop 1 -i "$WORK_DIR/titlecard.png" \
-    -i "$WORK_DIR/titlecard-narration.mp3" \
-    -c:v libx264 -preset fast -crf 23 -pix_fmt yuv420p \
-    -c:a aac -ar 44100 -ac 2 -b:a 128k \
-    -vf "scale=1920:1080,fps=25" \
-    -shortest \
-    "$WORK_DIR/titlecard-video.mp4" 2>/dev/null
-echo "   ✅ Title card: $(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$WORK_DIR/titlecard-video.mp4" 2>/dev/null | xargs printf "%.1f")s"
-
-# ── Step 4: Meditation narration ─────────────────────────────
-echo "🎤 Step 4: Generating meditation narration..."
-
-# 0.5s silence prefix so narration doesn't start cold
-ffmpeg -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 0.5 \
-    "$WORK_DIR/silence.mp3" 2>/dev/null
-
-tts_retry --voice "$VOICE" \
-    --file "$MEDITATION_TEXT" \
-    --write-media "$WORK_DIR/med-raw.mp3"
-
-# ── Export shared audio for build_short.py (avoid duplicate TTS) ──────
-# Build the combined narration (intro sentence + meditation) that
-# build_short.py also needs. Written once per language to /tmp/vor-audio-LANG/
-# so the Short can reuse it instead of calling TTS a second time for the
-# same content — the main source of Microsoft 429 throttling.
 SHARED_AUDIO_DIR="/tmp/vor-audio-${VOR_LANG}"
 mkdir -p "$SHARED_AUDIO_DIR"
 if [ "$VOR_LANG" = "es" ]; then
-    _DATE_STR=$(python3 -c "
+    _DATE_STR=$($PYTHON -c "
 from datetime import datetime
 MONTHS=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
 d = datetime.strptime('${MMDD}-${YEAR}', '%m-%d-%Y')
@@ -310,7 +280,57 @@ tts_retry --voice "$VOICE" \
     --file "$SHARED_AUDIO_DIR/narration.txt" \
     --write-media "$SHARED_AUDIO_DIR/narration.mp3" \
     --write-subtitles "$SHARED_AUDIO_DIR/narration.srt"
-echo "   ✅ Shared Short audio exported to $SHARED_AUDIO_DIR"
+echo "   ✅ Shared narration generated (also cached for Short reuse at $SHARED_AUDIO_DIR)"
+
+# Parse the SRT to find exactly where the intro sentence ends, then split:
+#   narration.mp3[0 .. intro_end]   → titlecard-narration.mp3
+#   narration.mp3[intro_end .. end]  → med-raw.mp3
+# A 0.15 s tail is added to the intro so the sentence doesn't clip.
+INTRO_END_S=$($PYTHON - "$SHARED_AUDIO_DIR/narration.srt" << 'PYEOF'
+import sys, re
+srt = open(sys.argv[1], encoding="utf-8").read()
+blocks = re.split(r'\n\s*\n', srt.strip())
+m = re.search(r'(\d{2}):(\d{2}):(\d{2}),(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2}),(\d{3})', blocks[0])
+if not m:
+    print("5.0")  # safe fallback
+    sys.exit(0)
+h, mi, s, ms = int(m.group(5)), int(m.group(6)), int(m.group(7)), int(m.group(8))
+print(f"{h*3600 + mi*60 + s + ms/1000.0 + 0.15:.3f}")
+PYEOF
+)
+echo "   ✅ Intro sentence ends at ${INTRO_END_S}s (from SRT)"
+
+# Trim → titlecard-narration.mp3
+ffmpeg -y -i "$SHARED_AUDIO_DIR/narration.mp3" \
+    -t "$INTRO_END_S" \
+    -c:a libmp3lame -q:a 2 \
+    "$WORK_DIR/titlecard-narration.mp3" 2>/dev/null
+
+# Trim → med-raw.mp3 (meditation body only, no intro)
+ffmpeg -y -i "$SHARED_AUDIO_DIR/narration.mp3" \
+    -ss "$INTRO_END_S" \
+    -c:a libmp3lame -q:a 2 \
+    "$WORK_DIR/med-raw.mp3" 2>/dev/null
+echo "   ✅ Title card audio and meditation body trimmed from shared narration"
+
+# ── Step 3: Narrated title card video ────────────────────────
+echo "🎬 Step 3: Creating narrated title card video..."
+ffmpeg -y \
+    -loop 1 -i "$WORK_DIR/titlecard.png" \
+    -i "$WORK_DIR/titlecard-narration.mp3" \
+    -c:v libx264 -preset fast -crf 23 -pix_fmt yuv420p \
+    -c:a aac -ar 44100 -ac 2 -b:a 128k \
+    -vf "scale=1920:1080,fps=25" \
+    -shortest \
+    "$WORK_DIR/titlecard-video.mp4" 2>/dev/null
+echo "   ✅ Title card: $(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$WORK_DIR/titlecard-video.mp4" 2>/dev/null | xargs printf "%.1f")s"
+
+# ── Step 4: Meditation narration assembly ─────────────────────
+echo "🎞️  Step 4: Assembling meditation audio..."
+
+# 0.5s silence prefix so narration doesn't start cold
+ffmpeg -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 0.5 \
+    "$WORK_DIR/silence.mp3" 2>/dev/null
 
 printf "file '$WORK_DIR/silence.mp3'\nfile '$WORK_DIR/med-raw.mp3'\n" \
     > "$WORK_DIR/audio-concat.txt"
