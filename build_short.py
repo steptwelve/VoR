@@ -369,10 +369,26 @@ def main():
     OUT_DIR.mkdir(exist_ok=True)
 
     # 1. Narration (intro + meditation) with sentence timings, and end cards
+    #
+    # Reuse audio built by build-video.sh when available. The landscape build
+    # exports /tmp/vor-audio-LANG/narration.{mp3,srt} — the same combined
+    # narration (intro sentence + full meditation) that the Short needs. When
+    # those files are present we skip the TTS call entirely, eliminating the
+    # duplicate Microsoft edge-tts request that caused 429 throttling.
+    shared_dir = Path(f"/tmp/vor-audio-{LANG}")
+    shared_mp3 = shared_dir / "narration.mp3"
+    shared_srt = shared_dir / "narration.srt"
     narr_txt = work / "narration.txt"
     narr_txt.write_text(intro + "\n\n" + MED_TEXT.read_text(encoding="utf-8"),
                         encoding="utf-8")
-    tts(narr_txt, voice, work / "narration.mp3", work / "narration.srt")
+    if shared_mp3.exists() and shared_srt.exists():
+        import shutil
+        shutil.copy(shared_mp3, work / "narration.mp3")
+        shutil.copy(shared_srt, work / "narration.srt")
+        log(f"   \u2705 Reusing shared audio from {shared_dir} (skipping TTS call)")
+    else:
+        log(f"   \u2139\ufe0f  No shared audio found at {shared_dir} — calling TTS")
+        tts(narr_txt, voice, work / "narration.mp3", work / "narration.srt")
     main_dur = duration(work / "narration.mp3") + 0.6
     end_durs, skipped = {}, []
     for brand in SHORT_BRANDS:

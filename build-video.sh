@@ -286,6 +286,32 @@ tts_retry --voice "$VOICE" \
     --file "$MEDITATION_TEXT" \
     --write-media "$WORK_DIR/med-raw.mp3"
 
+# ── Export shared audio for build_short.py (avoid duplicate TTS) ──────
+# Build the combined narration (intro sentence + meditation) that
+# build_short.py also needs. Written once per language to /tmp/vor-audio-LANG/
+# so the Short can reuse it instead of calling TTS a second time for the
+# same content — the main source of Microsoft 429 throttling.
+SHARED_AUDIO_DIR="/tmp/vor-audio-${VOR_LANG}"
+mkdir -p "$SHARED_AUDIO_DIR"
+if [ "$VOR_LANG" = "es" ]; then
+    _DATE_STR=$(python3 -c "
+from datetime import datetime
+MONTHS=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+d = datetime.strptime('${MMDD}-${YEAR}', '%m-%d-%Y')
+print(f'{d.day} de {MONTHS[d.month-1]} de {d.year}')
+")
+    _INTRO="Esta es la Meditación Diaria del ${_DATE_STR}, de Voces de Recuperación."
+else
+    _INTRO="Here's the Daily Meditation for ${MONTH_DAY} from Voices of Recovery."
+fi
+printf '%s\n\n' "$_INTRO" > "$SHARED_AUDIO_DIR/narration.txt"
+cat "$MEDITATION_TEXT" >> "$SHARED_AUDIO_DIR/narration.txt"
+tts_retry --voice "$VOICE" \
+    --file "$SHARED_AUDIO_DIR/narration.txt" \
+    --write-media "$SHARED_AUDIO_DIR/narration.mp3" \
+    --write-subtitles "$SHARED_AUDIO_DIR/narration.srt"
+echo "   ✅ Shared Short audio exported to $SHARED_AUDIO_DIR"
+
 printf "file '$WORK_DIR/silence.mp3'\nfile '$WORK_DIR/med-raw.mp3'\n" \
     > "$WORK_DIR/audio-concat.txt"
 ffmpeg -y -f concat -safe 0 -i "$WORK_DIR/audio-concat.txt" \
