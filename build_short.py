@@ -29,6 +29,7 @@ so the Short and the landscape video match.
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -350,17 +351,8 @@ def main():
     d = datetime.strptime(f"{MMDD}-{YEAR}", "%m-%d-%Y")
     if LANG == "es":
         date_str = f"{d.day} de {SPANISH_MONTHS[d.month - 1]} de {d.year}"
-        intro = f"Esta es la Meditación Diaria del {date_str}, de Voces de Recuperación."
     else:
         date_str = d.strftime("%B %-d, %Y")
-        intro = f"Here's the Daily Meditation for {date_str} from Voices of Recovery."
-
-    def end_file_for(brand):
-        base = BRANDS[brand]["narration"]
-        for name in ([f"{base}-es.txt", "endcard-narration-es.txt"] if LANG == "es"
-                     else []) + [f"{base}.txt", "endcard-narration.txt"]:
-            if (TEMPLATES / name).exists():
-                return TEMPLATES / name
 
     voice = pick_voice()
     log(f"📱 Building Short for {date_str} ({LANG}) — voice {voice} — "
@@ -368,32 +360,38 @@ def main():
     work = Path(tempfile.mkdtemp(prefix=f"vor-short-{MMDD}-{LANG}-"))
     OUT_DIR.mkdir(exist_ok=True)
 
-    # 1. Narration (intro + meditation) with sentence timings, and end cards
+    # 1. Narration (meditation body) with sentence timings
     #
     # Reuse audio built by build-video.sh when available. The landscape build
-    # exports /tmp/vor-audio-LANG/narration.{mp3,srt} — the same combined
-    # narration (intro sentence + full meditation) that the Short needs. When
-    # those files are present we skip the TTS call entirely, eliminating the
-    # duplicate Microsoft edge-tts request that caused 429 throttling.
+    # exports /tmp/vor-audio-LANG/narration.{mp3,srt} — the meditation body
+    # (no intro sentence). When those files are present we skip the TTS call
+    # entirely, eliminating the duplicate Microsoft edge-tts request.
     shared_dir = Path(f"/tmp/vor-audio-{LANG}")
     shared_mp3 = shared_dir / "narration.mp3"
     shared_srt = shared_dir / "narration.srt"
-    narr_txt = work / "narration.txt"
-    narr_txt.write_text(intro + "\n\n" + MED_TEXT.read_text(encoding="utf-8"),
-                        encoding="utf-8")
+
     if shared_mp3.exists() and shared_srt.exists():
-        import shutil
         shutil.copy(shared_mp3, work / "narration.mp3")
         shutil.copy(shared_srt, work / "narration.srt")
-        log(f"   \u2705 Reusing shared audio from {shared_dir} (skipping TTS call)")
+        log(f"   ✅ Reusing shared audio from {shared_dir} (skipping TTS call)")
     else:
-        log(f"   \u2139\ufe0f  No shared audio found at {shared_dir} — calling TTS")
-        tts(narr_txt, voice, work / "narration.mp3", work / "narration.srt")
+        log(f"   ℹ️  No shared audio found at {shared_dir} — calling TTS")
+        tts(MED_TEXT, voice, work / "narration.mp3", work / "narration.srt")
+
     main_dur = duration(work / "narration.mp3") + 0.6
+
+    # Pre-recorded outro audio — no TTS call needed for end cards
     end_durs, skipped = {}, []
     for brand in SHORT_BRANDS:
-        tts(end_file_for(brand), voice, work / f"endcard-{brand}.mp3")
-        end_durs[brand] = duration(work / f"endcard-{brand}.mp3") + 1.0
+        outro_src = TEMPLATES / "audio" / f"outro-{brand}-{voice}.mp3"
+        if not outro_src.exists():
+            log(f"   ⚠️  Pre-recorded outro not found: {outro_src}")
+            log(f"   Run: python3 generate_static_audio.py --voice {voice} --lang {LANG}")
+            sys.exit(1)
+        dest = work / f"endcard-{brand}.mp3"
+        shutil.copy(outro_src, dest)
+        log(f"   ✅ [{brand}] outro copied from templates/audio/outro-{brand}-{voice}.mp3")
+        end_durs[brand] = duration(dest) + 1.0
         total = main_dur + end_durs[brand]
         log(f"   [{brand}] narration {main_dur:.1f}s + end card "
             f"{end_durs[brand]:.1f}s = {total:.1f}s")

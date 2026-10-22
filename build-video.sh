@@ -255,63 +255,33 @@ combined.save("$WORK_DIR/titlecard.png")
 print("  ✅ Title card generated")
 PYEOF
 
-# ── Step 2: Shared narration (intro + meditation) ────────────
-# One TTS call produces the combined audio used by BOTH the landscape title
-# card segment AND the Short. The two landscape pieces are then derived from
-# it via ffmpeg trim — no separate TTS calls for title card or meditation body.
-echo "🎤 Step 2: Generating shared narration (intro + meditation) — 1 TTS call..."
+# ── Step 2: Narration — pre-recorded intro + TTS meditation body ──────────
+# Intro audio comes from templates/audio/intro-VOICE.mp3 (pre-recorded, no TTS).
+# Only the meditation body (which changes daily) goes through edge-tts.
+# The shared audio cache (/tmp/vor-audio-LANG/) is written here so build_short.py
+# can reuse the meditation narration + SRT without a second TTS call.
+echo "🎤 Step 2: Using pre-recorded intro; generating meditation narration via TTS (1 call)..."
 
 SHARED_AUDIO_DIR="/tmp/vor-audio-${VOR_LANG}"
 mkdir -p "$SHARED_AUDIO_DIR"
-if [ "$VOR_LANG" = "es" ]; then
-    _DATE_STR=$($PYTHON -c "
-from datetime import datetime
-MONTHS=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
-d = datetime.strptime('${MMDD}-${YEAR}', '%m-%d-%Y')
-print(f'{d.day} de {MONTHS[d.month-1]} de {d.year}')
-")
-    _INTRO="Esta es la Meditación Diaria del ${_DATE_STR}, de Voces de Recuperación."
-else
-    _INTRO="Here's the Daily Meditation for ${MONTH_DAY} from Voices of Recovery."
+
+# Title card: use the pre-recorded intro for this voice
+INTRO_MP3="$TEMPLATES/audio/intro-${VOICE}.mp3"
+if [ ! -f "$INTRO_MP3" ]; then
+    echo "   ⚠️  Pre-recorded intro not found: $INTRO_MP3"
+    echo "   Run: python3 generate_static_audio.py --voice $VOICE --lang ${VOR_LANG}"
+    exit 1
 fi
-printf '%s\n\n' "$_INTRO" > "$SHARED_AUDIO_DIR/narration.txt"
-cat "$MEDITATION_TEXT" >> "$SHARED_AUDIO_DIR/narration.txt"
+cp "$INTRO_MP3" "$WORK_DIR/titlecard-narration.mp3"
+echo "   ✅ Intro audio copied from templates/audio/intro-${VOICE}.mp3"
+
+# Meditation body: 1 TTS call, written to shared cache for Short reuse
 tts_retry --voice "$VOICE" \
-    --file "$SHARED_AUDIO_DIR/narration.txt" \
+    --file "$MEDITATION_TEXT" \
     --write-media "$SHARED_AUDIO_DIR/narration.mp3" \
     --write-subtitles "$SHARED_AUDIO_DIR/narration.srt"
-echo "   ✅ Shared narration generated (also cached for Short reuse at $SHARED_AUDIO_DIR)"
-
-# Parse the SRT to find exactly where the intro sentence ends, then split:
-#   narration.mp3[0 .. intro_end]   → titlecard-narration.mp3
-#   narration.mp3[intro_end .. end]  → med-raw.mp3
-# A 0.15 s tail is added to the intro so the sentence doesn't clip.
-INTRO_END_S=$($PYTHON - "$SHARED_AUDIO_DIR/narration.srt" << 'PYEOF'
-import sys, re
-srt = open(sys.argv[1], encoding="utf-8").read()
-blocks = re.split(r'\n\s*\n', srt.strip())
-m = re.search(r'(\d{2}):(\d{2}):(\d{2}),(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2}),(\d{3})', blocks[0])
-if not m:
-    print("5.0")  # safe fallback
-    sys.exit(0)
-h, mi, s, ms = int(m.group(5)), int(m.group(6)), int(m.group(7)), int(m.group(8))
-print(f"{h*3600 + mi*60 + s + ms/1000.0 + 0.15:.3f}")
-PYEOF
-)
-echo "   ✅ Intro sentence ends at ${INTRO_END_S}s (from SRT)"
-
-# Trim → titlecard-narration.mp3
-ffmpeg -y -i "$SHARED_AUDIO_DIR/narration.mp3" \
-    -t "$INTRO_END_S" \
-    -c:a libmp3lame -q:a 2 \
-    "$WORK_DIR/titlecard-narration.mp3" 2>/dev/null
-
-# Trim → med-raw.mp3 (meditation body only, no intro)
-ffmpeg -y -i "$SHARED_AUDIO_DIR/narration.mp3" \
-    -ss "$INTRO_END_S" \
-    -c:a libmp3lame -q:a 2 \
-    "$WORK_DIR/med-raw.mp3" 2>/dev/null
-echo "   ✅ Title card audio and meditation body trimmed from shared narration"
+cp "$SHARED_AUDIO_DIR/narration.mp3" "$WORK_DIR/med-raw.mp3"
+echo "   ✅ Meditation narration generated and cached at $SHARED_AUDIO_DIR"
 
 # ── Step 3: Narrated title card video ────────────────────────
 echo "🎬 Step 3: Creating narrated title card video..."
@@ -439,25 +409,21 @@ combined.save("$WORK_DIR/endcard-frame.png")
 print("  ✅ End card frame generated")
 PYEOF
 
-if [ "$VOR_LANG" = "es" ]; then
-    ENDCARD_NARRATION_FILE="$TEMPLATES/endcard-narration-es.txt"
-    if [ ! -f "$ENDCARD_NARRATION_FILE" ]; then
-        ENDCARD_NARRATION_FILE="$ENDCARD_NARRATION"
-    fi
-else
-    ENDCARD_NARRATION_FILE="$ENDCARD_NARRATION"
+# Use pre-recorded outro audio for this voice — no TTS call needed
+OUTRO_MP3="$TEMPLATES/audio/outro-vor-${VOICE}.mp3"
+if [ ! -f "$OUTRO_MP3" ]; then
+    echo "   ⚠️  Pre-recorded outro not found: $OUTRO_MP3"
+    echo "   Run: python3 generate_static_audio.py --voice $VOICE --lang ${VOR_LANG}"
+    exit 1
 fi
-
-tts_retry --voice "$VOICE" \
-    --file "$ENDCARD_NARRATION_FILE" \
-    --write-media "$WORK_DIR/endcard-narration-raw.mp3"
 
 ffmpeg -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 1.0 \
     "$WORK_DIR/endcard-silence.mp3" 2>/dev/null
-printf "file '$WORK_DIR/endcard-silence.mp3'\nfile '$WORK_DIR/endcard-narration-raw.mp3'\n" \
+printf "file '$WORK_DIR/endcard-silence.mp3'\nfile '$OUTRO_MP3'\n" \
     > "$WORK_DIR/endcard-concat.txt"
 ffmpeg -y -f concat -safe 0 -i "$WORK_DIR/endcard-concat.txt" \
     -c copy "$WORK_DIR/endcard-narration.mp3" 2>/dev/null
+echo "   ✅ Outro audio copied from templates/audio/outro-vor-${VOICE}.mp3"
 
 ENDCARD_DUR=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$WORK_DIR/endcard-narration.mp3" | xargs printf "%.3f")
 ffmpeg -y \
