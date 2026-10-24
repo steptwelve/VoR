@@ -2,7 +2,13 @@ name: Daily Meditation Poster
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VoR Daily Meditation — GitHub Actions Workflow
-# Version: 2026-10-13.18
+# Version: 2026-10-24.19
+#
+# Changes in .19 (2026-10-24):
+# - Step 3: replaced pinned jonata/edge-tts fork (PR#491 workaround) with
+#   official PyPI edge-tts>=7.3.1, which fixes the Sec-MS-GEC 403 error.
+#   The jonata fork pin was generating old-format tokens; 7.3.1 ships the
+#   correct algorithm for api.msedgeservices.com.
 #
 # Changes in .18 (2026-10-13):
 # - Spanish SCISAA Short (Step 5c): when ENABLE_SCISAA and ENABLE_SPANISH
@@ -262,14 +268,12 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y ffmpeg fonts-liberation
           pip install pillow
-          # TEMPORARY (2026-10-12): Microsoft's legacy Read Aloud host returns
-          # 403 since 2026-10-10 for every edge-tts release (upstream issue
-          # rany2/edge-tts#490). PR #491 moves synthesis to
-          # api.msedgeservices.com. Pinned to the reviewed PR commit until a
-          # fixed release ships, then go back to a plain `pip install edge-tts`.
-          pip install --force-reinstall --no-deps \
-            "git+https://github.com/jonata/edge-tts@8a5844c3a1d33e4e8f2f3e14535542c0d75d4248"
-          python -c "import edge_tts.constants as c; assert 'msedgeservices' in c.WSS_URL, c.WSS_URL; print('edge-tts endpoint OK')"
+          # edge-tts 7.3.1+ uses the new Sec-MS-GEC proof-of-work algorithm
+          # required by api.msedgeservices.com since 2026-10-10.
+          # Force-reinstall ensures the PyPI version from requirements.txt
+          # (>=7.3.1) overwrites any older cached install.
+          pip install --force-reinstall "edge-tts>=7.3.1"
+          python -c "import edge_tts; print('edge-tts', edge_tts.__version__)"
 
       # ── Step 4: Build and upload English video to YouTube ────────────────────
       - name: Build English video
