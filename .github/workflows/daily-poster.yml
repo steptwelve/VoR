@@ -2,7 +2,15 @@ name: Daily Meditation Poster
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VoR Daily Meditation — GitHub Actions Workflow
-# Version: 2026-10-24.19
+# Version: 2026-10-25.20
+#
+# Changes in .20 (2026-10-25):
+# - SCISAA Bluesky (@scisaa.org): when repo variables ENABLE_SCISAA and
+#   ENABLE_SCISAA_BSKY are both 'true', the English and Spanish SCISAA Shorts
+#   are also posted to the SCISAA Bluesky account as native video (Steps 4d
+#   and 5d, post_scisaa_bsky.py). Needs secret BSKY_SCISAA_APP_PASSWORD.
+#   Off by default. A failure only sends a Pushover warning and never affects
+#   the @ocisaa.org post or the YouTube uploads.
 #
 # Changes in .19 (2026-10-24):
 # - Step 3: replaced pinned jonata/edge-tts fork (PR#491 workaround) with
@@ -397,6 +405,29 @@ jobs:
             --form-string "priority=0" \
             https://api.pushover.net/1/messages.json
 
+      # ── Step 4d: SCISAA Bluesky (@scisaa.org) — English Short as native video ─
+      # Only when ENABLE_SCISAA_BSKY == 'true'. Posts the SCISAA-branded Short
+      # built by Step 4b. A failure here only sends a Pushover warning.
+      - name: Post English SCISAA Short to Bluesky (@scisaa.org)
+        id: bsky_scisaa_en
+        if: vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SHORTS == 'true' && vars.ENABLE_SCISAA == 'true' && vars.ENABLE_SCISAA_BSKY == 'true' && steps.build_short_en.outcome == 'success'
+        continue-on-error: true
+        env:
+          BSKY_SCISAA_APP_PASSWORD: ${{ secrets.BSKY_SCISAA_APP_PASSWORD }}
+        run: |
+          python post_scisaa_bsky.py $(date +'%m-%d') --lang en
+
+      - name: Notify — SCISAA Bluesky (English) failed
+        if: vars.ENABLE_SCISAA_BSKY == 'true' && steps.bsky_scisaa_en.outcome == 'failure'
+        run: |
+          curl -s \
+            --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
+            --form-string "user=${{ secrets.PUSHOVER_USER_KEY }}" \
+            --form-string "title=VoR FAILURE: SCISAA Bluesky (EN)" \
+            --form-string "message=English post to @scisaa.org failed on $(date +'%m-%d'). Check GitHub Actions logs." \
+            --form-string "priority=0" \
+            https://api.pushover.net/1/messages.json
+
       # ── Step 5: Translate, build, and upload Spanish video ───────────────────
       - name: Translate meditation to Spanish
         id: translate_es
@@ -499,6 +530,29 @@ jobs:
             --form-string "user=${{ secrets.PUSHOVER_USER_KEY }}" \
             --form-string "title=${TITLE}" \
             --form-string "message=${MSG}" \
+            --form-string "priority=0" \
+            https://api.pushover.net/1/messages.json
+
+      # ── Step 5d: SCISAA Bluesky (@scisaa.org) — Spanish Short as native video ─
+      # Only when ENABLE_SCISAA_BSKY == 'true'. Posts the Spanish SCISAA Short
+      # built by Step 5c. A failure here only sends a Pushover warning.
+      - name: Post Spanish SCISAA Short to Bluesky (@scisaa.org)
+        id: bsky_scisaa_es
+        if: vars.ENABLE_VIDEO == 'true' && vars.ENABLE_SHORTS == 'true' && vars.ENABLE_SCISAA == 'true' && vars.ENABLE_SCISAA_BSKY == 'true' && steps.build_short_scisaa_es.outcome == 'success'
+        continue-on-error: true
+        env:
+          BSKY_SCISAA_APP_PASSWORD: ${{ secrets.BSKY_SCISAA_APP_PASSWORD }}
+        run: |
+          python post_scisaa_bsky.py $(date +'%m-%d') --lang es
+
+      - name: Notify — SCISAA Bluesky (Spanish) failed
+        if: vars.ENABLE_SCISAA_BSKY == 'true' && steps.bsky_scisaa_es.outcome == 'failure'
+        run: |
+          curl -s \
+            --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
+            --form-string "user=${{ secrets.PUSHOVER_USER_KEY }}" \
+            --form-string "title=VoR FAILURE: SCISAA Bluesky (ES)" \
+            --form-string "message=Spanish post to @scisaa.org failed on $(date +'%m-%d'). Check GitHub Actions logs." \
             --form-string "priority=0" \
             https://api.pushover.net/1/messages.json
 
@@ -620,6 +674,8 @@ jobs:
           steps.upload_short_scisaa.outcome != 'failure' &&
           steps.build_short_scisaa_es.outcome != 'failure' &&
           steps.upload_short_scisaa_es.outcome != 'failure' &&
+          steps.bsky_scisaa_en.outcome != 'failure' &&
+          steps.bsky_scisaa_es.outcome != 'failure' &&
           steps.x_video.outcome != 'failure' &&
           steps.translate_es.outcome != 'failure' &&
           steps.build_es.outcome != 'failure' &&
