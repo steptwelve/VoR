@@ -16,7 +16,9 @@ Flow:
      the quote is the only part that is ever shortened (with an ellipsis).
   3. Log in as @scisaa.org with an app password and post the video, with
      rich-text facets so the hashtags and the link are clickable.
-  4. Write meditations/MM-DD-scisaa-bsky-{lang}.posted so re-runs never
+  4. Turn off replies and quote posts on the new post (anonymity: a reply or
+     quote would publicly tie a member to SCISAA).
+  5. Write meditations/MM-DD-scisaa-bsky-{lang}.posted so re-runs never
      double-post (the workflow's commit step adds meditations/*.posted).
 
 Usage:  python post_scisaa_bsky.py [MM-DD] [--lang en|es] [--dry-run] [--force]
@@ -26,6 +28,8 @@ Env:    BSKY_SCISAA_APP_PASSWORD  required to post (an app password, never the
                                   account password)
         BSKY_SCISAA_USERNAME      default: scisaa.org
         BSKY_VIDEO_MAX_MB         default: 100 (Bluesky's video size limit)
+        BSKY_LOCK_INTERACTIONS    default: 1 (replies and quote posts are turned
+                                  off on each post; set 0 to leave them open)
 Exit:   0 = posted, already posted, or dry run; 1 = failed (the workflow then
         sends a Pushover warning).
 """
@@ -167,6 +171,36 @@ def facet_specs(text):
 
 # ── Posting ──────────────────────────────────────────────────────────────────
 
+def lock_down_post(client, models, uri):
+    """Turn off replies and quote posts on the post we just made, matching the
+    account's settings (members could out themselves by replying or quoting).
+
+    Bluesky stores these as two small records whose key is the post's own key:
+    a threadgate with an empty allow-list (nobody may reply) and a postgate with
+    the disable-quotes rule. Failure here never fails the post; it only warns.
+    """
+    rkey = uri.rstrip("/").split("/")[-1]
+    did = client.me.did
+    now = client.get_current_time_iso()
+    try:
+        client.app.bsky.feed.threadgate.create(
+            repo=did, rkey=rkey,
+            record=models.AppBskyFeedThreadgate.Record(
+                post=uri, allow=[], created_at=now))
+        log("Replies disabled on this post.")
+    except Exception as e:
+        log(f"WARNING: could not disable replies: {type(e).__name__}: {e}")
+    try:
+        client.app.bsky.feed.postgate.create(
+            repo=did, rkey=rkey,
+            record=models.AppBskyFeedPostgate.Record(
+                post=uri, created_at=now,
+                embedding_rules=[models.AppBskyFeedPostgate.DisableRule()]))
+        log("Quote posts disabled on this post.")
+    except Exception as e:
+        log(f"WARNING: could not disable quote posts: {type(e).__name__}: {e}")
+
+
 def post_video(text, specs, video, lang, username, password):
     from atproto import Client, models      # imported late: dry runs need no SDK
 
@@ -190,7 +224,10 @@ def post_video(text, specs, video, lang, username, password):
         langs=[lang],
         facets=facets,
     )
-    return getattr(resp, "uri", None)
+    uri = getattr(resp, "uri", None)
+    if uri and os.environ.get("BSKY_LOCK_INTERACTIONS", "1") != "0":
+        lock_down_post(client, models, uri)
+    return uri
 
 
 def parse_args():
