@@ -54,6 +54,7 @@ except Exception:
 BSKY_LIMIT = 300
 SAFE_LIMIT = 296                      # small margin under Bluesky's 300
 MAX_VIDEO_MB = float(os.environ.get("BSKY_VIDEO_MAX_MB", "100"))
+HTTP_TIMEOUT = float(os.environ.get("BSKY_HTTP_TIMEOUT", "120"))   # seconds
 SHORT_WIDTH, SHORT_HEIGHT = 1080, 1920   # build_short.py renders 9:16
 DEFAULT_USERNAME = "scisaa.org"
 
@@ -203,6 +204,7 @@ def lock_down_post(client, models, uri):
 
 def post_video(text, specs, video, lang, username, password):
     from atproto import Client, models      # imported late: dry runs need no SDK
+    from atproto_client.request import Request
 
     F = models.AppBskyRichtextFacet
     facets = []
@@ -211,7 +213,13 @@ def post_video(text, specs, video, lang, username, password):
         facets.append(F.Main(index=F.ByteSlice(byte_start=b0, byte_end=b1),
                              features=[feature]))
 
-    client = Client()
+    # The SDK's default HTTP timeout is httpx's 5 seconds. With a video embed,
+    # Bluesky can take longer than that to answer the final createRecord call:
+    # the post still lands, but the client raised InvokeTimeoutError, skipped
+    # the reply/quote lock-down, never wrote the .posted flag, and sent a false
+    # failure alert (10-26 to 10-28). A generous timeout fixes that. Do NOT add
+    # a blind retry: the first attempt may have succeeded and would double-post.
+    client = Client(request=Request(timeout=HTTP_TIMEOUT))
     log(f"Logging into Bluesky as {username}")
     client.login(username, password)
     log(f"Uploading {video.name} ({video.stat().st_size / 1e6:.1f} MB)…")
