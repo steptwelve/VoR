@@ -292,10 +292,12 @@ def render_endcard(path, brand="vor"):
             cta = "Reuniones de SAA en el Sur de California:"
             url = "scisaa.org"
             meet = "En todo el mundo: saa-recovery.org"
+            sub_lines = ["Suscríbete a nuestro boletín:", "scisaa.org/subscribe"]
         else:
             cta = "Para saber más sobre SAA, visita:"
             url = "saa-recovery.org"
             meet = "Encuentra una reunión: saa-meetings.org"
+            sub_lines = ["Suscríbete: @StepTwelveSAA"]
     else:
         quote = ('"A fellowship of individuals who share their experience, strength, '
                  'and hope with each other so they may overcome their sexual addiction '
@@ -305,16 +307,18 @@ def render_endcard(path, brand="vor"):
             cta = "SAA meetings in Southern California:"
             url = "scisaa.org"
             meet = "Worldwide: saa-recovery.org"
+            sub_lines = ["Subscribe to our bulletin:", "scisaa.org/subscribe"]
         else:
             cta = "To learn more about SAA, visit:"
             url = "saa-recovery.org"
             meet = "Find a meeting: saa-meetings.org"
+            sub_lines = ["Subscribe: @StepTwelveSAA"]
 
     qf = font(40)
     probe = ImageDraw.Draw(bg)
     quote_lines = wrap(probe, quote, qf, W - 200)
     top = 520
-    bottom = top + 320 + 54 * len(quote_lines) + 170   # box fits the content
+    bottom = top + 320 + 54 * len(quote_lines) + 170 + 52 * len(sub_lines)   # box fits the content
     box = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     ImageDraw.Draw(box).rounded_rectangle([(60, top), (W - 60, bottom)], 28,
                                           fill=(0, 0, 0, 140))
@@ -331,10 +335,14 @@ def render_endcard(path, brand="vor"):
         center(line, qf, y, (210, 225, 210))
         y += 54
     center(meet, font(42, True), y + 35)
+    sy = y + 105
+    for line in sub_lines:
+        center(line, font(42, True), sy)
+        sy += 52
     af = font(24)
     while text_w(d, attr, af) > W - 160 and af.size > 16:
         af = font(af.size - 1)
-    center(attr, af, y + 115, (210, 225, 210))
+    center(attr, af, sy + 25, (210, 225, 210))
     img.convert("RGB").save(path)
 
 
