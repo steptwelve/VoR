@@ -174,7 +174,7 @@ name: Daily Meditation Poster
 on:
   schedule:
     # Runs at 1 AM Pacific (9 AM UTC)
-    - cron: '0 9 * * *'
+    - cron: '17 7 * * *'
 
   # Allows manual trigger from GitHub Actions tab
   workflow_dispatch:
