@@ -173,7 +173,7 @@ name: Daily Meditation Poster
 
 on:
   schedule:
-    # Runs at 1 AM Pacific (9 AM UTC)
+    # Runs at 07:17 UTC (after midnight Central; off-minute to dodge GitHub queue delays)
     - cron: '17 7 * * *'
 
   # Allows manual trigger from GitHub Actions tab
