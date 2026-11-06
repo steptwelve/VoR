@@ -49,6 +49,14 @@ def load_english_text(mmdd: str) -> str:
     return path.read_text(encoding="utf-8").strip()
 
 
+def strip_markup(text: str) -> str:
+    """Remove markdown emphasis/header characters so TTS never reads them aloud."""
+    text = text.replace("*", "").replace("_", "")
+    text = "\n".join(line.lstrip("#").lstrip() if line.startswith("#") else line
+                     for line in text.splitlines())
+    return text.strip()
+
+
 def translate_via_anthropic(english_text: str) -> str:
     try:
         import anthropic
@@ -71,6 +79,8 @@ Important reminders:
 - Keep the same structure: date line, quote, source, story, closing reflection
 - Do not add translator notes or any text not in the original
 - Output only the translated text
+- Plain text only: no markdown, asterisks, underscores, italics, bold, or headers.
+  Write book and publication titles as plain text (no emphasis markers).
 """
 
     print(f"[translate] Calling Anthropic API ({config.translation_dialect})...")
@@ -132,7 +142,7 @@ def main():
     english_text = load_english_text(mmdd)
     print(f"[translate] Source: meditations/{mmdd}.txt ({len(english_text)} chars)")
 
-    spanish_text = translate(english_text)
+    spanish_text = strip_markup(translate(english_text))
     print(f"[translate] Translation: {len(spanish_text)} chars")
 
     if args.dry_run:

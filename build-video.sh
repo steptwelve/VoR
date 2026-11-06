@@ -275,9 +275,12 @@ fi
 cp "$INTRO_MP3" "$WORK_DIR/titlecard-narration.mp3"
 echo "   ✅ Intro audio copied from templates/audio/intro-${VOICE}.mp3"
 
+# Strip markdown characters (*, _, leading #) so TTS and subtitles never read them aloud
+sed -e 's/[*_]//g' -e 's/^#* *//' "$MEDITATION_TEXT" > "$WORK_DIR/meditation-clean.txt"
+
 # Meditation body: 1 TTS call, written to shared cache for Short reuse
 tts_retry --voice "$VOICE" \
-    --file "$MEDITATION_TEXT" \
+    --file "$WORK_DIR/meditation-clean.txt" \
     --write-media "$SHARED_AUDIO_DIR/narration.mp3" \
     --write-subtitles "$SHARED_AUDIO_DIR/narration.srt"
 cp "$SHARED_AUDIO_DIR/narration.mp3" "$WORK_DIR/med-raw.mp3"
