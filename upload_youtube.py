@@ -83,18 +83,18 @@ if LANG == "es":
     title       = f"Voces de Recuperación — {date_str}"
     description = f"""Meditación Diaria de Voces de Recuperación para el {date_str}.
 
-Voces de Recuperación es un lector diario para personas en recuperación de la adicción sexual, publicado por Sexoadictos Anónimos® (SAA).
+Voces de Recuperación es un lector diario para personas en recuperación de la adicción sexual, publicado por Adictos Sexuales Anónimos® (ASA).
 
 📖 Lectura de hoy: https://saa-recovery.org/daily-meditation-from-voices-of-recovery/
 
-Sexoadictos Anónimos (SAA) es una confraternidad de personas que comparten su experiencia, fortaleza y esperanza con el objetivo de superar su adicción sexual.
+Adictos Sexuales Anónimos (ASA) es una confraternidad de personas que comparten su experiencia, fortaleza y esperanza con el objetivo de superar su adicción sexual.
 
 🌐 Más información: https://saa-recovery.org
 🤝 Encuentra una reunión: https://saa-meetings.org
 
-#recuperacion #adiccion #SAA #meditacion #VocesDeRecuperacion"""
+#recuperacion #adiccion #SAA #ASA #meditacion #VocesDeRecuperacion"""
     tags        = ["recuperación", "adicción sexual", "SAA", "meditación diaria",
-                   "Sexoadictos Anónimos", "voces de recuperación", "espiritualidad"]
+                   "Adictos Sexuales Anónimos", "ASA", "voces de recuperación", "espiritualidad"]
     playlist_id = os.environ.get("YT_PLAYLIST_ID_ES", "")
 else:
     title       = f"Voices of Recovery — {date_str}"
@@ -141,15 +141,17 @@ if BRAND == "scisaa":
             fecha = date_str
         title = f"Voces de Recuperación — {fecha} #Shorts"
         description = f"""#Shorts
-Meditación Diaria de Voces de Recuperación para el {fecha}, compartida por el Intergrupo del Sur de California de Sexoadictos Anónimos (SCISAA).
+Meditación Diaria de Voces de Recuperación para el {fecha}, compartida por el Intergrupo del Sur de California de Adictos Sexuales Anónimos (SCISAA).
 
-Voces de Recuperación es un lector diario publicado por Sexoadictos Anónimos® (SAA).
+Voces de Recuperación es un lector diario publicado por Adictos Sexuales Anónimos® (ASA).
 
 📍 Reuniones en el Sur de California: {SCISAA_URL}
 🌐 SAA en todo el mundo: https://saa-recovery.org
 🤝 Encuentra una reunión: https://saa-meetings.org
 
-#recuperacion #SAA #meditacion #VocesDeRecuperacion #SurDeCalifornia"""
+El contenido de este canal no ha sido aprobado por la ISO de SAA, Inc., y puede no reflejar sus opiniones ni sus políticas.
+
+#recuperacion #SAA #ASA #meditacion #VocesDeRecuperacion #SurDeCalifornia"""
         tags = tags + ["SCISAA", "Sur de California", "Los Ángeles"]
         playlist_id = os.environ.get("YT_PLAYLIST_ID_SCISAA_ES", "")
     else:
@@ -161,6 +163,8 @@ Voices of Recovery is a daily reader published by Sex Addicts Anonymous® (SAA).
 📍 SAA meetings in Southern California: {SCISAA_URL}
 🌐 SAA worldwide: https://saa-recovery.org
 🤝 Find a meeting anywhere: https://saa-meetings.org
+
+The content of this channel has not been approved by, and may not reflect the opinions or policies of, the ISO of SAA, Inc.
 
 #recovery #SAA #dailymeditation #VoicesOfRecovery #SouthernCalifornia #LosAngeles"""
         tags = tags + ["SCISAA", "Southern California", "Los Angeles"]
