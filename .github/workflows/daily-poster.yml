@@ -271,10 +271,20 @@ jobs:
 
       # ── Step 3: Install video dependencies ───────────────────────────────────
       - name: Install video dependencies (ffmpeg + edge-tts)
+        id: install_video
         if: vars.ENABLE_VIDEO == 'true' && steps.background.outcome == 'success'
+        # A mirror outage once hung apt-get for ~1 hour (2026-11-11). Cap the
+        # step and retry apt a few times so a hiccup fails fast or recovers.
+        timeout-minutes: 10
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y ffmpeg fonts-liberation
+          for attempt in 1 2 3; do
+            if sudo timeout 180 apt-get -o Acquire::Retries=3 update -qq \
+               && sudo timeout 240 apt-get -o Acquire::Retries=3 install -y ffmpeg fonts-liberation; then
+              break
+            fi
+            if [ "$attempt" = "3" ]; then echo "apt-get failed after 3 attempts"; exit 1; fi
+            echo "apt-get attempt $attempt failed; retrying in 20s"; sleep 20
+          done
           pip install pillow
           # edge-tts 7.3.1+ uses the new Sec-MS-GEC proof-of-work algorithm
           # required by api.msedgeservices.com since 2026-10-10.
@@ -282,6 +292,17 @@ jobs:
           # (>=7.3.1) overwrites any older cached install.
           pip install --force-reinstall "edge-tts>=7.3.1"
           python -c "import edge_tts; print('edge-tts', edge_tts.__version__)"
+
+      - name: Notify — video dependency install failed
+        if: always() && steps.install_video.outcome == 'failure'
+        run: |
+          curl -s \
+            --form-string "token=${{ secrets.PUSHOVER_APP_TOKEN }}" \
+            --form-string "user=${{ secrets.PUSHOVER_USER_KEY }}" \
+            --form-string "title=VoR FAILURE: video dependencies" \
+            --form-string "message=ffmpeg/edge-tts install failed on $(date +'%m-%d'); no video was built. Re-run via Run workflow (not Re-run failed jobs)." \
+            --form-string "priority=0" \
+            https://api.pushover.net/1/messages.json
 
       # ── Step 4: Build and upload English video to YouTube ────────────────────
       - name: Build English video
@@ -664,9 +685,11 @@ jobs:
       - name: Notify — success
         if: |
           always() &&
+          job.status == 'success' &&
           steps.social.outcome != 'failure' &&
           steps.commit.outcome == 'success' &&
           steps.background.outcome != 'failure' &&
+          steps.install_video.outcome != 'failure' &&
           steps.build_en.outcome != 'failure' &&
           steps.upload_en.outcome != 'failure' &&
           steps.build_short_en.outcome != 'failure' &&
