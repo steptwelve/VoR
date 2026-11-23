@@ -2,7 +2,18 @@ name: Daily Meditation Poster
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VoR Daily Meditation — GitHub Actions Workflow
-# Version: 2026-11-21.21
+# Version: 2026-11-23.22
+#
+# Changes in .22 (2026-11-23):
+# - Primary trigger is now lsm: its crontab calls the workflow_dispatch API
+#   at 4:03 AM Eastern (= 1:03 AM Pacific year-round). GitHub's own schedule
+#   kept as a backup only (it had been starting runs 8-12 hours late).
+# - Whole-run duplicate guard: new 'check' job looks for
+#   meditations/MM-DD.posted and skips the entire run (videos, Shorts,
+#   uploads) if found. Previously only Step 1 skipped, so a second run would
+#   have uploaded duplicate YouTube videos.
+# - concurrency group 'daily-poster': a second run waits for the first to
+#   finish (never runs in parallel), then the check job sees .posted and skips.
 #
 # Changes in .21 (2026-11-21):
 # - Daily wallpapers (Step 1b, publish_wallpapers.py): renders today's
@@ -184,14 +195,46 @@ name: Daily Meditation Poster
 
 on:
   schedule:
-    # Runs at 07:17 UTC (after midnight Central; off-minute to dodge GitHub queue delays)
-    - cron: '17 7 * * *'
+    # BACKUP ONLY. The primary trigger is lsm's crontab (workflow_dispatch at
+    # 09:03 UTC). This fires later (GitHub usually starts it hours late) and the
+    # 'check' job turns it into a no-op if today's meditation already posted.
+    - cron: '37 9 * * *'
 
   # Allows manual trigger from GitHub Actions tab
   workflow_dispatch:
 
+# Never run two of these at once; a second run queues behind the first.
+concurrency:
+  group: daily-poster
+  cancel-in-progress: false
+
 jobs:
+  # ── Whole-run duplicate guard ──────────────────────────────────────────────
+  # Skips everything (social, videos, Shorts, uploads) if today's .posted file
+  # is already in the repo. To force a re-run: delete meditations/MM-DD.posted,
+  # commit, and trigger again.
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      posted: ${{ steps.chk.outputs.posted }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: meditations
+      - id: chk
+        run: |
+          MMDD=$(date +'%m-%d')
+          if [ -f "meditations/${MMDD}.posted" ]; then
+            echo "posted=true" >> "$GITHUB_OUTPUT"
+            echo "=== ALREADY POSTED: ${MMDD} — skipping entire run ==="
+          else
+            echo "posted=false" >> "$GITHUB_OUTPUT"
+            echo "Not yet posted for ${MMDD} — running"
+          fi
+
   post-meditation:
+    needs: check
+    if: needs.check.outputs.posted != 'true'
     runs-on: ubuntu-latest
 
     steps:
