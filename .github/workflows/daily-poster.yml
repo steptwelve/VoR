@@ -6,7 +6,7 @@ name: Daily Meditation Poster
 #
 # Changes in .22 (2026-11-23):
 # - Primary trigger is now lsm: its crontab calls the workflow_dispatch API
-#   at 4:03 AM Eastern (= 1:03 AM Pacific year-round). GitHub's own schedule
+#   at 1:05 AM Eastern (5 min after the ISO changes the reading at midnight Central). GitHub schedule
 #   kept as a backup only (it had been starting runs 8-12 hours late).
 # - Whole-run duplicate guard: new 'check' job looks for
 #   meditations/MM-DD.posted and skips the entire run (videos, Shorts,
@@ -196,7 +196,7 @@ name: Daily Meditation Poster
 on:
   schedule:
     # BACKUP ONLY. The primary trigger is lsm's crontab (workflow_dispatch at
-    # 09:03 UTC). This fires later (GitHub usually starts it hours late) and the
+    # 1:05 AM Eastern = 06:05 UTC, or 05:05 during DST). This fires later (GitHub usually starts it hours late) and the
     # 'check' job turns it into a no-op if today's meditation already posted.
     - cron: '37 9 * * *'
 
