@@ -245,7 +245,9 @@ BSKY_HASHTAGS = [
     "#sobriety",
 ]
 BSKY_URL = "https://bit.ly/step12-bsky"
-BSKY_YT_URL = "https://youtube.com/@StepTwelveSAA"
+# Overridable so the workflow can point at @SCISAA once StepTwelve uploads stop
+# (repo variable STEPTWELVE_YOUTUBE=off).
+BSKY_YT_URL = os.environ.get("BSKY_YT_URL") or "https://youtube.com/@StepTwelveSAA"
 
 # X/Twitter uses same hashtags but different URL (no YouTube link — character budget)
 X_HASHTAGS = BSKY_HASHTAGS
