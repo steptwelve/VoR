@@ -43,6 +43,19 @@ W, H = 1080, 1920
 FPS = 25
 MAX_SECONDS = 179.0  # YouTube Shorts limit is 3:00; keep a margin
 NARRATION_DELAY = 0.3  # seconds of silence before the voice starts
+# Bluesky rejects videos over 100 MB. Busy backgrounds (waterfalls, rain,
+# grass) can push a CRF-only encode far past that, so the final encode gets
+# a bitrate ceiling sized to each Short's length. CRF still sets quality;
+# the ceiling only bites on scenes that would otherwise blow the budget.
+SIZE_TARGET_MB = float(os.environ.get("SHORT_SIZE_TARGET_MB", "95"))
+AUDIO_KBPS = 128
+
+
+def video_cap_kbps(seconds):
+    """Max video bitrate that keeps a Short of this length under the target.
+    Decimal MB (matches post_scisaa_bsky.py); 3% held back for container overhead."""
+    budget_kbit = SIZE_TARGET_MB * 8000 * 0.97
+    return int(budget_kbit / max(seconds, 1.0) - AUDIO_KBPS)
 
 DAILY_DIR = Path(__file__).resolve().parent
 MMDD = sys.argv[1] if len(sys.argv) > 1 else datetime.now().strftime("%m-%d")
@@ -468,12 +481,17 @@ def main():
              "-c:v", "libx264", "-preset", "fast", "-crf", "21",
              "-c:a", "aac", "-ar", "44100", "-ac", "2", "-b:a", "128k",
              "-t", f"{end_dur:.3f}", str(end_mp4)])
+        cap = video_cap_kbps(main_dur + end_dur)
+        log(f"   [{brand}] video bitrate cap {cap} kbps "
+            f"(target {SIZE_TARGET_MB:.0f} MB for {main_dur + end_dur:.0f}s)")
         run(["ffmpeg", "-y", "-i", str(work / "main.mp4"), "-i", str(end_mp4),
              "-filter_complex", "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]",
              "-map", "[v]", "-map", "[a]",
              "-c:v", "libx264", "-preset", "fast", "-crf", "21",
+             "-maxrate", f"{cap}k", "-bufsize", f"{2 * cap}k",
              "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(out)])
         final = duration(out)
+        log(f"   [{brand}] final size {out.stat().st_size / 1e6:.1f} MB")
         if final > MAX_SECONDS:
             out.unlink()
             log(f"⚠️  [{brand}] final {final:.0f}s exceeds the Shorts limit — removed.")
